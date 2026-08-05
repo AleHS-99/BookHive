@@ -3,9 +3,10 @@ pub mod migrations;
 use rusqlite::Connection;
 use std::fs;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
-pub struct Db(pub Mutex<Connection>);
+#[derive(Clone)]
+pub struct Db(pub Arc<Mutex<Connection>>);
 
 pub fn init(app_data_dir: &Path) -> Result<Db, String> {
     fs::create_dir_all(app_data_dir)
@@ -24,5 +25,5 @@ pub fn init(app_data_dir: &Path) -> Result<Db, String> {
 
     migrations::run(&conn)?;
 
-    Ok(Db(Mutex::new(conn)))
+    Ok(Db(Arc::new(Mutex::new(conn))))
 }

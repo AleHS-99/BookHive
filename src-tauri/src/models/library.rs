@@ -11,3 +11,34 @@ pub struct LibraryStatus {
     pub library_path: Option<String>,
     pub is_empty: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncSummary {
+    pub folders: u32,
+    pub books: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct FolderRow {
+    pub id: i64,
+    pub parent_id: Option<i64>,
+    pub name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct BookRow {
+    pub id: i64,
+    pub folder_id: Option<i64>,
+    pub title: String,
+    pub author: Option<String>,
+    pub format: String,
+    pub cover_status: String,
+    pub cover_cache_key: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PendingCover {
+    pub id: i64,
+    pub relative_path: String,
+    pub format: String,
+}

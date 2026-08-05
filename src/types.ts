@@ -3,6 +3,7 @@ export type Book = {
   title: string;
   author: string;
   imageUrl?: string;
+  format?: 'epub' | 'pdf' | string;
 };
 
 export type Folder = {

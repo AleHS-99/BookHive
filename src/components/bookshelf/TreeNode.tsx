@@ -10,7 +10,7 @@ interface TreeNodeProps {
 }
 
 export const TreeNode = ({ node, level = 0 }: TreeNodeProps) => {
-  const [isExpanded, setIsExpanded] = useState(level < 2); // Expand first 2 levels by default
+  const [isExpanded, setIsExpanded] = useState(false); // Expand first 2 levels by default
   
   // If it's a Book
   if ('title' in node) {

@@ -1,0 +1,32 @@
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BookDto {
+    pub id: String,
+    pub title: String,
+    pub author: String,
+    pub format: String,
+
+    #[serde(rename = "imageUrl")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FolderDto {
+    pub id: String,
+    pub name: String,
+
+    #[serde(rename = "type")]
+    pub folder_type: String,
+
+    pub count: usize,
+    pub children: Vec<TreeNodeDto>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
+pub enum TreeNodeDto {
+    Folder(FolderDto),
+    Book(BookDto),
+}

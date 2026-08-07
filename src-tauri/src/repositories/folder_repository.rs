@@ -195,3 +195,128 @@ pub fn get_child_folders_page(
 
     Ok(folders)
 }
+
+pub fn count_folder_picker_children(
+    conn: &Connection,
+    parent_id: Option<i64>,
+) -> Result<i64, String> {
+    let count = match parent_id {
+        Some(id) => conn.query_row(
+            "SELECT COUNT(*) FROM folders WHERE parent_id = ?1",
+            params![id],
+            |row| row.get(0),
+        ),
+        None => conn.query_row(
+            "SELECT COUNT(*) FROM folders WHERE parent_id IS NULL",
+            params![],
+            |row| row.get(0),
+        ),
+    };
+
+    count.map_err(|e| format!("Error contando carpetas para picker: {e}"))
+}
+
+pub fn get_folder_picker_rows(
+    conn: &Connection,
+    parent_id: Option<i64>,
+    limit: u32,
+    offset: u32,
+) -> Result<Vec<crate::models::FolderPickerRow>, String> {
+    let sql = match parent_id {
+        Some(_) => {
+            "SELECT
+                f.id,
+                f.name,
+                EXISTS(SELECT 1 FROM folders c WHERE c.parent_id = f.id) AS has_children
+             FROM folders f
+             WHERE f.parent_id = ?1
+             ORDER BY f.name COLLATE NOCASE
+             LIMIT ?2 OFFSET ?3"
+        }
+        None => {
+            "SELECT
+                f.id,
+                f.name,
+                EXISTS(SELECT 1 FROM folders c WHERE c.parent_id = f.id) AS has_children
+             FROM folders f
+             WHERE f.parent_id IS NULL
+             ORDER BY f.name COLLATE NOCASE
+             LIMIT ?1 OFFSET ?2"
+        }
+    };
+
+    let mut stmt = conn
+        .prepare(sql)
+        .map_err(|e| format!("Error preparando consulta de picker: {e}"))?;
+
+    let mapper = |row: &rusqlite::Row| {
+        Ok(crate::models::FolderPickerRow {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            has_children: row.get(2)?,
+        })
+    };
+
+    let rows = match parent_id {
+        Some(id) => stmt.query_map(params![id, limit, offset], mapper),
+        None => stmt.query_map(params![limit, offset], mapper),
+    };
+
+    let rows = rows.map_err(|e| format!("Error consultando picker: {e}"))?;
+
+    let mut folders = Vec::new();
+
+    for folder in rows {
+        folders.push(folder.map_err(|e| format!("Error leyendo carpeta picker: {e}"))?);
+    }
+
+    Ok(folders)
+}
+
+pub fn get_folder_relative_path(conn: &Connection, id: i64) -> Result<String, String> {
+    conn.query_row(
+        "SELECT relative_path FROM folders WHERE id = ?1",
+        params![id],
+        |row| row.get(0),
+    )
+    .map_err(|e| format!("Error obteniendo ruta relativa de carpeta: {e}"))
+}
+
+pub fn folder_exists_by_name(
+    conn: &Connection,
+    parent_id: Option<i64>,
+    name: &str,
+) -> Result<bool, String> {
+    let count = match parent_id {
+        Some(pid) => conn.query_row(
+            "SELECT COUNT(*) FROM folders WHERE parent_id = ?1 AND name = ?2 COLLATE NOCASE",
+            params![pid, name],
+            |row| row.get(0),
+        ),
+        None => conn.query_row(
+            "SELECT COUNT(*) FROM folders WHERE parent_id IS NULL AND name = ?1 COLLATE NOCASE",
+            params![name],
+            |row| row.get(0),
+        ),
+    };
+
+    count
+        .map(|c: i64| c > 0)
+        .map_err(|e| format!("Error verificando existencia de carpeta: {e}"))
+}
+
+pub fn insert_folder(
+    conn: &Connection,
+    parent_id: Option<i64>,
+    name: &str,
+    relative_path: &str,
+) -> Result<i64, String> {
+    conn.execute(
+        "INSERT INTO folders (parent_id, name, relative_path, sort_order)
+         VALUES (?1, ?2, ?3, 0)",
+        params![parent_id, name, relative_path],
+    )
+    .map_err(|e| format!("Error insertando carpeta: {e}"))?;
+
+    Ok(conn.last_insert_rowid())
+}

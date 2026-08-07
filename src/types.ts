@@ -44,3 +44,20 @@ export type PaginatedTreePage = {
   pageSize: number;
   hasMore: boolean;
 };
+
+export type SearchBook = {
+  id: string;
+  title: string;
+  author: string;
+  format?: 'epub' | 'pdf' | string;
+  imageUrl?: string;
+  folderName?: string | null;
+};
+
+export type SearchPage = {
+  items: SearchBook[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+};

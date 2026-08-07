@@ -58,3 +58,10 @@ pub struct BookCoverState {
     pub is_missing: i64,
     pub cover_cache_key: String,
 }
+
+#[derive(Debug, Clone)]
+pub struct FolderPickerRow {
+    pub id: i64,
+    pub name: String,
+    pub has_children: bool,
+}

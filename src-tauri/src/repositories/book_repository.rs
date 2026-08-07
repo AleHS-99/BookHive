@@ -347,3 +347,120 @@ pub fn clear_book_cover(conn: &Connection, book_id: i64) -> Result<(), String> {
 
     Ok(())
 }
+
+fn escape_like_query(query: &str) -> String {
+    query
+        .trim()
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
+fn search_pattern(query: &str) -> String {
+    format!("%{}%", escape_like_query(query))
+}
+
+pub fn count_search_books(conn: &Connection, query: &str) -> Result<i64, String> {
+    let pattern = search_pattern(query);
+
+    let count = conn.query_row(
+        "SELECT COUNT(*)
+         FROM books
+         WHERE is_missing = 0
+           AND (
+               COALESCE(NULLIF(title, ''), file_name) LIKE ?1 ESCAPE '\\'
+               OR COALESCE(author, '') LIKE ?1 ESCAPE '\\'
+               OR file_name LIKE ?1 ESCAPE '\\'
+           )",
+        params![pattern],
+        |row| row.get(0),
+    );
+
+    count.map_err(|e| format!("Error contando resultados de búsqueda: {e}"))
+}
+
+pub fn search_books(
+    conn: &Connection,
+    query: &str,
+    limit: u32,
+    offset: u32,
+) -> Result<Vec<crate::models::SearchBookRow>, String> {
+    let pattern = search_pattern(query);
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT
+                b.id,
+                b.folder_id,
+                COALESCE(NULLIF(b.title, ''), b.file_name) AS title,
+                b.author,
+                b.format,
+                b.cover_status,
+                b.cover_cache_key,
+                f.name AS folder_name
+             FROM books b
+             LEFT JOIN folders f ON b.folder_id = f.id
+             WHERE b.is_missing = 0
+               AND (
+                   COALESCE(NULLIF(b.title, ''), b.file_name) LIKE ?1 ESCAPE '\\'
+                   OR COALESCE(b.author, '') LIKE ?1 ESCAPE '\\'
+                   OR b.file_name LIKE ?1 ESCAPE '\\'
+               )
+             ORDER BY b.title COLLATE NOCASE
+             LIMIT ?2 OFFSET ?3",
+        )
+        .map_err(|e| format!("Error preparando búsqueda de libros: {e}"))?;
+
+    let rows = stmt
+        .query_map(params![pattern, limit, offset], |row| {
+            Ok(crate::models::SearchBookRow {
+                id: row.get(0)?,
+                folder_id: row.get(1)?,
+                title: row.get(2)?,
+                author: row.get(3)?,
+                format: row.get(4)?,
+                cover_status: row.get(5)?,
+                cover_cache_key: row.get(6)?,
+                folder_name: row.get(7)?,
+            })
+        })
+        .map_err(|e| format!("Error ejecutando búsqueda de libros: {e}"))?;
+
+    let mut books = Vec::new();
+
+    for book in rows {
+        books.push(book.map_err(|e| format!("Error leyendo libro buscado: {e}"))?);
+    }
+
+    Ok(books)
+}
+
+pub fn get_book_info_for_move(conn: &Connection, id: i64) -> Result<(String, String), String> {
+    conn.query_row(
+        "SELECT relative_path, file_name FROM books WHERE id = ?1",
+        params![id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )
+    .map_err(|e| format!("Error obteniendo info de libro para mover: {e}"))
+}
+
+pub fn update_book_location(
+    conn: &Connection,
+    id: i64,
+    folder_id: Option<i64>,
+    relative_path: &str,
+    file_name: &str,
+) -> Result<(), String> {
+    conn.execute(
+        "UPDATE books
+         SET folder_id = ?1,
+             relative_path = ?2,
+             file_name = ?3,
+             updated_at = datetime('now')
+         WHERE id = ?4",
+        params![folder_id, relative_path, file_name, id],
+    )
+    .map_err(|e| format!("Error actualizando ubicación de libro: {e}"))?;
+
+    Ok(())
+}

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { Folder, PaginatedTreePage } from '../types';
+import { Folder, PaginatedTreePage, SearchPage } from '../types';
 import { mockBookshelf } from '../data/mockData';
 import { isTauri } from '../utils/platform';
 
@@ -44,6 +44,28 @@ export const BookshelfService = {
 
     return invoke<PaginatedTreePage>('get_folder_page', {
       folderId: parseFolderId(folderId),
+      page,
+      pageSize,
+    });
+  },
+
+  searchBooks: async (
+    query: string,
+    page: number,
+    pageSize: number
+  ): Promise<SearchPage> => {
+    if (!isTauri()) {
+      return {
+        items: [],
+        total: 0,
+        page,
+        pageSize,
+        hasMore: false,
+      };
+    }
+
+    return invoke<SearchPage>('search_books', {
+      query,
       page,
       pageSize,
     });

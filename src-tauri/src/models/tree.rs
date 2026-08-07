@@ -40,3 +40,21 @@ pub struct PaginatedTreePage {
     pub page_size: u32,
     pub has_more: bool,
 }
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderPickerItem {
+    pub id: String,
+    pub name: String,
+    pub has_children: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderPickerPage {
+    pub items: Vec<FolderPickerItem>,
+    pub total: u32,
+    pub page: u32,
+    pub page_size: u32,
+    pub has_more: bool,
+}

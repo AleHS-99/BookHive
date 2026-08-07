@@ -197,3 +197,30 @@ pub fn get_folder_page(
 
     tree_service::get_folder_page(&conn, &covers_dir, folder_id, page, page_size)
 }
+
+#[tauri::command]
+pub fn search_books(
+    db: State<'_, Db>,
+    app: AppHandle,
+    query: String,
+    page: u32,
+    page_size: u32,
+) -> Result<crate::models::SearchPage, String> {
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+
+    let _library_path = settings_repository::get_library_path(&conn)?
+        .ok_or_else(|| "No hay carpeta de biblioteca configurada.".to_string())?;
+
+    let covers_dir = cover_service::covers_dir(&app)?;
+
+    crate::services::search_service::search_books(
+        &conn,
+        &covers_dir,
+        &query,
+        page,
+        page_size,
+    )
+}

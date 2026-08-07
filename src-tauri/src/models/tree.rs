@@ -30,3 +30,13 @@ pub enum TreeNodeDto {
     Folder(FolderDto),
     Book(BookDto),
 }
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaginatedTreePage {
+    pub items: Vec<TreeNodeDto>,
+    pub total: u32,
+    pub page: u32,
+    pub page_size: u32,
+    pub has_more: bool,
+}

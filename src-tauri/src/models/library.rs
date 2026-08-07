@@ -42,3 +42,19 @@ pub struct PendingCover {
     pub relative_path: String,
     pub format: String,
 }
+
+#[derive(Debug, Clone)]
+pub struct FolderSummaryRow {
+    pub id: i64,
+    pub parent_id: Option<i64>,
+    pub name: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct BookCoverState {
+    pub id: i64,
+    pub format: String,
+    pub is_missing: i64,
+    pub cover_cache_key: String,
+}

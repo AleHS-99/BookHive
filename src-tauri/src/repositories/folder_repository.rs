@@ -93,3 +93,105 @@ pub fn get_all_folders(conn: &Connection) -> Result<Vec<FolderRow>, String> {
 
     Ok(folders)
 }
+
+pub fn count_child_folders(
+    conn: &Connection,
+    parent_id: Option<i64>,
+) -> Result<i64, String> {
+    let count = match parent_id {
+        Some(id) => conn.query_row(
+            "SELECT COUNT(*) FROM folders WHERE parent_id = ?1",
+            params![id],
+            |row| row.get(0),
+        ),
+        None => conn.query_row(
+            "SELECT COUNT(*) FROM folders WHERE parent_id IS NULL",
+            params![],
+            |row| row.get(0),
+        ),
+    };
+
+    count.map_err(|e| format!("Error contando carpetas hijas: {e}"))
+}
+
+pub fn get_child_folders_page(
+    conn: &Connection,
+    parent_id: Option<i64>,
+    limit: u32,
+    offset: u32,
+) -> Result<Vec<crate::models::FolderSummaryRow>, String> {
+    let sql = match parent_id {
+        Some(_) => {
+            "SELECT
+                f.id,
+                f.parent_id,
+                f.name,
+                (
+                    SELECT COUNT(*)
+                    FROM folders c
+                    WHERE c.parent_id = f.id
+                )
+                +
+                (
+                    SELECT COUNT(*)
+                    FROM books b
+                    WHERE b.folder_id = f.id
+                      AND b.is_missing = 0
+                ) AS child_count
+             FROM folders f
+             WHERE f.parent_id = ?1
+             ORDER BY f.name COLLATE NOCASE
+             LIMIT ?2 OFFSET ?3"
+        }
+        None => {
+            "SELECT
+                f.id,
+                f.parent_id,
+                f.name,
+                (
+                    SELECT COUNT(*)
+                    FROM folders c
+                    WHERE c.parent_id = f.id
+                )
+                +
+                (
+                    SELECT COUNT(*)
+                    FROM books b
+                    WHERE b.folder_id = f.id
+                      AND b.is_missing = 0
+                ) AS child_count
+             FROM folders f
+             WHERE f.parent_id IS NULL
+             ORDER BY f.name COLLATE NOCASE
+             LIMIT ?1 OFFSET ?2"
+        }
+    };
+
+    let mut stmt = conn
+        .prepare(sql)
+        .map_err(|e| format!("Error preparando consulta de carpetas paginadas: {e}"))?;
+
+    let mapper = |row: &rusqlite::Row| {
+        Ok(crate::models::FolderSummaryRow {
+            id: row.get(0)?,
+            parent_id: row.get(1)?,
+            name: row.get(2)?,
+            count: row.get(3)?,
+        })
+    };
+
+    let rows = match parent_id {
+        Some(id) => stmt.query_map(params![id, limit, offset], mapper),
+        None => stmt.query_map(params![limit, offset], mapper),
+    };
+
+    let rows = rows.map_err(|e| format!("Error consultando carpetas paginadas: {e}"))?;
+
+    let mut folders = Vec::new();
+
+    for folder in rows {
+        folders.push(folder.map_err(|e| format!("Error leyendo carpeta paginada: {e}"))?);
+    }
+
+    Ok(folders)
+}

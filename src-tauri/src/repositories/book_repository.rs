@@ -204,3 +204,146 @@ pub fn reset_epub_covers(conn: &Connection) -> Result<(), String> {
 
     Ok(())
 }
+
+pub fn count_child_books(
+    conn: &Connection,
+    parent_id: Option<i64>,
+) -> Result<i64, String> {
+    let count = match parent_id {
+        Some(id) => conn.query_row(
+            "SELECT COUNT(*)
+             FROM books
+             WHERE folder_id = ?1
+               AND is_missing = 0",
+            params![id],
+            |row| row.get(0),
+        ),
+        None => conn.query_row(
+            "SELECT COUNT(*)
+             FROM books
+             WHERE folder_id IS NULL
+               AND is_missing = 0",
+            params![],
+            |row| row.get(0),
+        ),
+    };
+
+    count.map_err(|e| format!("Error contando libros hijos: {e}"))
+}
+
+pub fn get_child_books_page(
+    conn: &Connection,
+    parent_id: Option<i64>,
+    limit: u32,
+    offset: u32,
+) -> Result<Vec<BookRow>, String> {
+    let sql = match parent_id {
+        Some(_) => {
+            "SELECT
+                id,
+                folder_id,
+                COALESCE(NULLIF(title, ''), file_name) AS title,
+                author,
+                format,
+                cover_status,
+                cover_cache_key
+             FROM books
+             WHERE folder_id = ?1
+               AND is_missing = 0
+             ORDER BY title COLLATE NOCASE
+             LIMIT ?2 OFFSET ?3"
+        }
+        None => {
+            "SELECT
+                id,
+                folder_id,
+                COALESCE(NULLIF(title, ''), file_name) AS title,
+                author,
+                format,
+                cover_status,
+                cover_cache_key
+             FROM books
+             WHERE folder_id IS NULL
+               AND is_missing = 0
+             ORDER BY title COLLATE NOCASE
+             LIMIT ?1 OFFSET ?2"
+        }
+    };
+
+    let mut stmt = conn
+        .prepare(sql)
+        .map_err(|e| format!("Error preparando consulta de libros paginados: {e}"))?;
+
+    let mapper = |row: &rusqlite::Row| {
+        Ok(BookRow {
+            id: row.get(0)?,
+            folder_id: row.get(1)?,
+            title: row.get(2)?,
+            author: row.get(3)?,
+            format: row.get(4)?,
+            cover_status: row.get(5)?,
+            cover_cache_key: row.get(6)?,
+        })
+    };
+
+    let rows = match parent_id {
+        Some(id) => stmt.query_map(params![id, limit, offset], mapper),
+        None => stmt.query_map(params![limit, offset], mapper),
+    };
+
+    let rows = rows.map_err(|e| format!("Error consultando libros paginados: {e}"))?;
+
+    let mut books = Vec::new();
+
+    for book in rows {
+        books.push(book.map_err(|e| format!("Error leyendo libro paginado: {e}"))?);
+    }
+
+    Ok(books)
+}
+
+pub fn get_books_with_cover(conn: &Connection) -> Result<Vec<crate::models::BookCoverState>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, format, is_missing, cover_cache_key
+             FROM books
+             WHERE cover_cache_key IS NOT NULL",
+        )
+        .map_err(|e| format!("Error preparando consulta de books con cover: {e}"))?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(crate::models::BookCoverState {
+                id: row.get(0)?,
+                format: row.get(1)?,
+                is_missing: row.get(2)?,
+                cover_cache_key: row.get(3)?,
+            })
+        })
+        .map_err(|e| format!("Error consultando books con cover: {e}"))?;
+
+    let mut books = Vec::new();
+
+    for book in rows {
+        books.push(book.map_err(|e| format!("Error leyendo book con cover: {e}"))?);
+    }
+
+    Ok(books)
+}
+
+pub fn clear_book_cover(conn: &Connection, book_id: i64) -> Result<(), String> {
+    conn.execute(
+        "UPDATE books
+         SET cover_cache_key = NULL,
+             cover_status = CASE
+                 WHEN format = 'epub' THEN 'pending'
+                 ELSE 'none'
+             END,
+             updated_at = datetime('now')
+         WHERE id = ?1",
+        params![book_id],
+    )
+    .map_err(|e| format!("Error limpiando cover de libro: {e}"))?;
+
+    Ok(())
+}

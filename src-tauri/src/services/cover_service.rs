@@ -93,3 +93,60 @@ pub fn generate_epub_cover(
 
     Ok(file_name)
 }
+
+pub fn cleanup_covers(
+    conn: &rusqlite::Connection,
+    covers_dir: &Path,
+) -> Result<u32, String> {
+    use std::collections::HashSet;
+
+    let mut deleted = 0u32;
+    let mut valid_keys = HashSet::new();
+
+    let books_with_cover = crate::repositories::book_repository::get_books_with_cover(conn)?;
+
+    for book in books_with_cover {
+        let cover_path = covers_dir.join(&book.cover_cache_key);
+
+        let should_remove_cover = book.is_missing != 0 || !cover_path.exists();
+
+        if should_remove_cover {
+            if cover_path.exists() {
+                let _ = std::fs::remove_file(&cover_path);
+                deleted += 1;
+            }
+
+            crate::repositories::book_repository::clear_book_cover(conn, book.id)?;
+        } else {
+            valid_keys.insert(book.cover_cache_key);
+        }
+    }
+
+    // Eliminar covers huérfanos que ya no pertenecen a ningún libro válido.
+    if let Ok(entries) = std::fs::read_dir(covers_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+
+            if !path.is_file() {
+                continue;
+            }
+
+            let file_name = match path.file_name().and_then(|n| n.to_str()) {
+                Some(name) => name,
+                None => continue,
+            };
+
+            if !file_name.ends_with(".webp") {
+                continue;
+            }
+
+            if !valid_keys.contains(file_name) {
+                if std::fs::remove_file(&path).is_ok() {
+                    deleted += 1;
+                }
+            }
+        }
+    }
+
+    Ok(deleted)
+}

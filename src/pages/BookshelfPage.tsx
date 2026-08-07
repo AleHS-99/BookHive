@@ -3,7 +3,17 @@ import { useBookshelf } from '../hooks/useBookshelf';
 import { TreeNode } from '../components/bookshelf/TreeNode';
 
 export const BookshelfPage = () => {
-  const { data, loading, error, refresh } = useBookshelf();
+  const {
+    items,
+    loading,
+    loadingMore,
+    error,
+    hasMore,
+    refresh,
+    loadMoreRoot,
+    loadChildren,
+    folderPagination,
+  } = useBookshelf();
 
   return (
     <div className="max-w-7xl mx-auto relative h-full">
@@ -33,7 +43,7 @@ export const BookshelfPage = () => {
         </div>
       </div>
 
-      {/* Bookshelf Tree View */}
+      {/* Bookshelf Lazy Tree View */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-400">
@@ -44,7 +54,7 @@ export const BookshelfPage = () => {
             <p className="font-medium mb-2">Error cargando la biblioteca</p>
             <p className="text-sm">{error}</p>
           </div>
-        ) : data && data.children.length === 0 ? (
+        ) : items.length === 0 ? (
           <div className="p-10 text-center">
             <p className="text-gray-600 font-medium">
               Tu biblioteca está vacía
@@ -64,9 +74,28 @@ export const BookshelfPage = () => {
             </button>
           </div>
         ) : (
-          data?.children.map((child) => (
-            <TreeNode key={child.id} node={child} />
-          ))
+          <>
+            {items.map((node) => (
+              <TreeNode
+                key={node.id}
+                node={node}
+                onLoadChildren={loadChildren}
+                folderPagination={folderPagination}
+              />
+            ))}
+
+            {hasMore && (
+              <div className="p-4 border-t border-gray-100">
+                <button
+                  onClick={loadMoreRoot}
+                  disabled={loadingMore}
+                  className="w-full py-3 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  {loadingMore ? 'Cargando...' : 'Cargar más'}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 

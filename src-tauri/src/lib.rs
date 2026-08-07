@@ -95,6 +95,7 @@ pub fn run() {
             commands::library::sync_library,
             commands::library::get_library_tree,
             commands::library::process_pending_covers,
+            commands::library::get_folder_page,
         ])
         .run(tauri::generate_context!())
         .expect("error while running BookHive");

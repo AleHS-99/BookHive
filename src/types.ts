@@ -30,3 +30,17 @@ export type LibraryStatus = {
   library_path: string | null;
   is_empty: boolean;
 };
+
+export type FolderPaginationState = {
+  page: number;
+  hasMore: boolean;
+  loading: boolean;
+};
+
+export type PaginatedTreePage = {
+  items: (Folder | Book)[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+};

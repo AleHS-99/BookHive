@@ -1,9 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
 import {
   DiscoverBook,
+  DiscoverBookDetail,
   DiscoverCategory,
   DiscoverHome,
   DiscoverPage,
+  DownloadResult,
 } from '../types';
 import { isTauri } from '../utils/platform';
 
@@ -46,14 +48,19 @@ export const LectulandiaService = {
     });
   },
 
-  downloadBook: async (bookUrl: string): Promise<{
-    fileName: string;
-    bytes: number;
-    savedPath: string;
-  }> => {
+  getBookDetail: async (url: string): Promise<DiscoverBookDetail> => {
+    if (!isTauri()) {
+      throw new Error('Detalle solo disponible en Tauri.');
+    }
+    return invoke<DiscoverBookDetail>('discover_book_detail', { url });
+  },
+
+  downloadBook: async (downloadPageUrl: string): Promise<DownloadResult> => {
     if (!isTauri()) {
       throw new Error('Descarga solo disponible en Tauri.');
     }
-    return invoke('discover_download_book', { bookUrl });
+    return invoke<DownloadResult>('discover_download_book', {
+      downloadPageUrl,
+    });
   },
 };

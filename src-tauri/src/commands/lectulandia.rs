@@ -46,21 +46,22 @@ pub async fn discover_download_book(
     _app: AppHandle,
     download_page_url: String,
 ) -> Result<DownloadResult, String> {
-    // 1) Resolver el link directo de descarga.
+    // 1) Resolver el link directo de descarga (ahora devuelve también el referer).
     let http = lectulandia::client::build_client()?;
-    let (file_name, direct_url) =
+    let (file_name, direct_url, referer) =
         lectulandia::download::resolve_download(&http, &download_page_url).await?;
 
-    // 2) Descargar a un archivo temporal.
+    // 2) Descargar a un archivo temporal con el referer correcto.
     let temp_dir = std::env::temp_dir();
-    let unique = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_millis();
+    let temp_path = temp_dir.join(&file_name);
 
-    let temp_path = temp_dir.join(format!("bookhive_{unique}_{file_name}"));
-
-    let bytes = lectulandia::download::download_to_file(&http, &direct_url, &temp_path).await?;
+    let bytes = lectulandia::download::download_to_file(
+        &http,
+        &direct_url,
+        &referer,
+        &temp_path,
+    )
+    .await?;
 
     // 3) Importar a la biblioteca (raíz) reutilizando la lógica existente.
     let conn = db
@@ -90,4 +91,3 @@ pub async fn discover_download_book(
         saved_path: saved_path.to_string_lossy().to_string(),
     })
 }
-

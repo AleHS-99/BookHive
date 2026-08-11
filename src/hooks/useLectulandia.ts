@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LectulandiaService } from '../services/lectulandia.service';
-import { DiscoverBook, DiscoverCategory } from '../types';
+import { DiscoverBook, DiscoverBookDetail, DiscoverCategory } from '../types';
 
-type View = 'home' | 'search' | 'category';
+type View = 'home' | 'search' | 'category' | 'detail';
 
 export const useLectulandia = () => {
   // Estado de vistas
@@ -30,7 +30,19 @@ export const useLectulandia = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Detalle del libro
+  const [selectedBook, setSelectedBook] = useState<DiscoverBook | null>(null);
+  const [detail, setDetail] = useState<DiscoverBookDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
   const abortRef = useRef<number>(0);
+  const viewRef = useRef<View>('home');
+  const prevViewRef = useRef<View>('home');
+
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
 
   // Cargar home al montar
   useEffect(() => {
@@ -107,43 +119,49 @@ export const useLectulandia = () => {
   }, []);
 
   // Seleccionar categoría
-  const selectCategory = useCallback(async (category: DiscoverCategory | null) => {
-    if (!category) {
-      setView('home');
-      setActiveCategory(null);
-      setItems([]);
-      return;
-    }
-
-    const requestId = ++abortRef.current;
-
-    setView('category');
-    setActiveCategory(category);
-    setQuery('');
-    setLoading(true);
-    setError(null);
-    setItems([]);
-    setPage(1);
-
-    try {
-      const result = await LectulandiaService.getCategoryBooks(category.path, 1);
-
-      if (requestId !== abortRef.current) return;
-
-      setItems(result.items);
-      setHasMore(result.hasMore);
-      setPage(1);
-    } catch (err) {
-      if (requestId !== abortRef.current) return;
-
-      console.error('Error cargando categoría:', err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      if (requestId === abortRef.current) {
-        setLoading(false);
+  const selectCategory = useCallback(
+    async (category: DiscoverCategory | null) => {
+      if (!category) {
+        setView('home');
+        setActiveCategory(null);
+        setItems([]);
+        return;
       }
-    }
-  }, []);
+
+      const requestId = ++abortRef.current;
+
+      setView('category');
+      setActiveCategory(category);
+      setQuery('');
+      setLoading(true);
+      setError(null);
+      setItems([]);
+      setPage(1);
+
+      try {
+        const result = await LectulandiaService.getCategoryBooks(
+          category.path,
+          1
+        );
+
+        if (requestId !== abortRef.current) return;
+
+        setItems(result.items);
+        setHasMore(result.hasMore);
+        setPage(1);
+      } catch (err) {
+        if (requestId !== abortRef.current) return;
+
+        console.error('Error cargando categoría:', err);
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (requestId === abortRef.current) {
+          setLoading(false);
+        }
+      }
+    },
+    []
+  );
 
   // Cargar más
   const loadMore = useCallback(async () => {
@@ -193,6 +211,46 @@ export const useLectulandia = () => {
     setActiveCategory(null);
     setItems([]);
     setError(null);
+    setSelectedBook(null);
+    setDetail(null);
+  }, []);
+
+  // Abrir detalle de un libro
+  const openBookDetail = useCallback(async (book: DiscoverBook) => {
+    const requestId = ++abortRef.current;
+
+    prevViewRef.current = viewRef.current;
+    setView('detail');
+    setSelectedBook(book);
+    setDetail(null);
+    setDetailError(null);
+    setLoadingDetail(true);
+
+    try {
+      const d = await LectulandiaService.getBookDetail(book.url);
+
+      if (requestId !== abortRef.current) return;
+
+      setDetail(d);
+    } catch (err) {
+      if (requestId !== abortRef.current) return;
+
+      console.error('Error cargando detalle del libro:', err);
+      setDetailError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (requestId === abortRef.current) {
+        setLoadingDetail(false);
+      }
+    }
+  }, []);
+
+  // Volver desde el detalle
+  const closeBookDetail = useCallback(() => {
+    ++abortRef.current;
+    setView(prevViewRef.current);
+    setSelectedBook(null);
+    setDetail(null);
+    setDetailError(null);
   }, []);
 
   return {
@@ -219,10 +277,18 @@ export const useLectulandia = () => {
     loadingMore,
     error,
 
+    // Detalle
+    selectedBook,
+    detail,
+    loadingDetail,
+    detailError,
+
     // Acciones
     submitSearch,
     selectCategory,
     loadMore,
     goHome,
+    openBookDetail,
+    closeBookDetail,
   };
 };

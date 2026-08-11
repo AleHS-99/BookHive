@@ -3,13 +3,13 @@ import { ArrowLeft, Loader2, Search, X, ChevronDown, RefreshCw } from 'lucide-re
 import { useLectulandia } from '../hooks/useLectulandia';
 import { BookCarousel } from '../components/discover/BookCarousel';
 import { BookCard } from '../components/discover/BookCard';
+import { BookDetailView } from '../components/discover/BookDetailView';
 import { DiscoverBook } from '../types';
 import { clsx } from 'clsx';
 
 export const LectulandiaPage = () => {
   const lectulandia = useLectulandia();
   const [showCategories, setShowCategories] = useState(false);
-  const [selectedBook, setSelectedBook] = useState<DiscoverBook | null>(null);
 
   const {
     view,
@@ -27,16 +27,38 @@ export const LectulandiaPage = () => {
     loading,
     loadingMore,
     error,
+    selectedBook,
+    detail,
+    loadingDetail,
+    detailError,
     submitSearch,
     selectCategory,
     loadMore,
     goHome,
+    openBookDetail,
+    closeBookDetail,
   } = lectulandia;
 
   const handleBookClick = (book: DiscoverBook) => {
-    setSelectedBook(book);
-    // TODO: abrir modal de detalle / descarga
+    void openBookDetail(book);
   };
+
+  // Vista de detalle
+  if (view === 'detail' && selectedBook) {
+    return (
+      <div className="max-w-4xl mx-auto h-full">
+        <div className="py-6 pt-4 md:pt-8">
+          <BookDetailView
+            book={selectedBook}
+            detail={detail}
+            loading={loadingDetail}
+            error={detailError}
+            onBack={closeBookDetail}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto h-full">
@@ -54,7 +76,6 @@ export const LectulandiaPage = () => {
             </button>
           )}
 
-          {/* Buscador */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -90,7 +111,6 @@ export const LectulandiaPage = () => {
             )}
           </form>
 
-          {/* Filtro de categorías */}
           <div className="relative">
             <button
               type="button"
@@ -176,7 +196,7 @@ export const LectulandiaPage = () => {
           </div>
         )}
 
-        {/* HOME: carruseles */}
+        {/* HOME */}
         {view === 'home' && (
           <>
             {loadingHome ? (
@@ -187,7 +207,7 @@ export const LectulandiaPage = () => {
                     <div className="flex gap-4">
                       {Array.from({ length: 6 }).map((_, i) => (
                         <div key={i} className="w-32 md:w-36 shrink-0">
-                          <div className="aspect-[2/3] rounded-lg bg-gray-200 animate-pulse" />
+                          <div className="aspect-2/3 rounded-lg bg-gray-200 animate-pulse" />
                           <div className="h-3 bg-gray-200 rounded mt-2 animate-pulse" />
                         </div>
                       ))}
@@ -222,8 +242,8 @@ export const LectulandiaPage = () => {
           </>
         )}
 
-        {/* BÚSQUEDA / CATEGORÍA: grid + cargar más */}
-        {view !== 'home' && (
+        {/* BÚSQUEDA / CATEGORÍA */}
+        {view !== 'home' && view !== 'detail' && (
           <div>
             <div className="mb-4">
               <h2 className="text-lg font-bold text-gray-900">
@@ -242,7 +262,7 @@ export const LectulandiaPage = () => {
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
                 {Array.from({ length: 16 }).map((_, i) => (
                   <div key={i}>
-                    <div className="aspect-[2/3] rounded-lg bg-gray-200 animate-pulse" />
+                    <div className="aspect-2/3 rounded-lg bg-gray-200 animate-pulse" />
                     <div className="h-3 bg-gray-200 rounded mt-2 animate-pulse" />
                   </div>
                 ))}

@@ -120,3 +120,23 @@ export type DiscoverHome = {
   novelties: DiscoverBook[];
   mostRead: DiscoverBook[];
 };
+
+export type DownloadLink = {
+  label: string;
+  format: 'epub' | 'pdf' | 'other' | string;
+  url: string;
+};
+
+export type DiscoverBookDetail = {
+  title: string;
+  author?: string;
+  coverUrl?: string;
+  synopsis?: string;
+  downloadLinks: DownloadLink[];
+};
+
+export type DownloadResult = {
+  fileName: string;
+  bytes: number;
+  savedPath: string;
+};

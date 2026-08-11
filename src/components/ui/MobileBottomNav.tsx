@@ -11,7 +11,7 @@ const navItems = [
 
 export const MobileBottomNav = () => {
   return (
-    <nav className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around py-3 z-20">
+    <nav className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around py-3">
       {navItems.map((item) => (
         <NavLink
           key={item.id}

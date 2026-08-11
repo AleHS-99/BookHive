@@ -166,29 +166,47 @@ pub fn parse_book_detail(html: &str) -> Result<DiscoverBookDetail, String> {
                 .filter(|s| !s.is_empty())
         });
 
-    // Extraer TODOS los enlaces de descarga dentro de #downloadContainer.
+    // --- Extraer TODOS los enlaces de descarga de #downloadContainer ---
+    // HTML real:
+    //   <a href="/download.php?...">
+    //     <input type="button" value="epub">
+    //     <input type="button" value="epub">
+    //   </a>
+    let link_sel = sel("#downloadContainer a");
+    let input_sel = sel("input[value]");
+
     let mut download_links: Vec<DownloadLink> = Vec::new();
+    let mut seen_formats = std::collections::HashSet::new();
 
-    if let Some(container) = document.select(&sel("#downloadContainer")).next() {
-        let link_sel = sel("a");
+    for link in document.select(&link_sel) {
+        let Some(href) = link.value().attr("href") else {
+            continue;
+        };
 
-        for link in container.select(&link_sel) {
-            let Some(href) = link.value().attr("href") else {
-                continue;
-            };
+        // El label real está en el <input value="..."> dentro del <a>.
+        let raw_label = link
+            .select(&input_sel)
+            .find_map(|inp| inp.value().attr("value").map(|s| s.trim().to_string()))
+            .filter(|s| !s.is_empty());
 
-            let raw_label = text_of(&link);
-            let url = to_absolute_url(href);
+        let Some(label_text) = raw_label else {
+            continue;
+        };
 
-            let format = detect_format(&raw_label, href);
-            let label = normalize_label(&raw_label, &format);
+        let format = detect_format(&label_text, href);
+        let url = to_absolute_url(href);
 
-            download_links.push(DownloadLink {
-                label,
-                format,
-                url,
-            });
+        // Evitar duplicados (lectulandia a veces pone el input dos veces).
+        if seen_formats.contains(&format) {
+            continue;
         }
+        seen_formats.insert(format.clone());
+
+        download_links.push(DownloadLink {
+            label: label_text.to_uppercase(),
+            format,
+            url,
+        });
     }
 
     if download_links.is_empty() {

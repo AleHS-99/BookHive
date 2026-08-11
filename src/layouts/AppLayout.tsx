@@ -47,8 +47,8 @@ export const AppLayout = () => {
       />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden w-full pt-0 md:pt-0">
-        <div className="flex-1 overflow-y-auto pb-24 md:pb-6 px-4 md:px-8">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden w-full pt-0 md:pt-0 pb-20">
+        <div className="flex-1 overflow-y-auto pb-28 md:pb-6 px-4 md:px-8">
           <Outlet />
         </div>
       </main>

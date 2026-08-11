@@ -1,0 +1,169 @@
+name: Build BookHive App
+
+on:
+  workflow_dispatch:          # Ejecución manual desde Actions
+  push:
+    tags:
+      - 'v*'                  # Al crear un tag como v1.0.0, v2.0.0-beta, etc.
+
+permissions:
+  contents: write
+
+jobs:
+  # ============ WINDOWS ============
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Instalar Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 11.17.0
+
+      - name: Cache de Rust (Cargo)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Instalar dependencias del frontend
+        run: pnpm install
+
+      - name: Build de Tauri (Windows)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "BookHive v__VERSION__"
+          releaseBody: "Nueva versión disponible. Descarga el instalador para Windows."
+          releaseDraft: true
+          prerelease: false
+
+  # ============ LINUX ============
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Instalar dependencias del sistema (Tauri)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Instalar Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 11.17.0
+
+      - name: Cache de Rust (Cargo)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Instalar dependencias del frontend
+        run: pnpm install
+
+      - name: Build de Tauri (Linux)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "BookHive v__VERSION__"
+          releaseBody: "Nueva versión disponible. Descarga el paquete para Linux (.deb / .AppImage)."
+          releaseDraft: true
+          prerelease: false
+
+  # ============ ANDROID (nuevo) ============
+  build-android:
+    name: Build Android (APK)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Instalar Rust con targets para Android
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 11.17.0
+
+      - name: Instalar Java (JDK 17)
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Instalar Android SDK y NDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: latest
+
+      # Opcional: instalar cmake y ninja si tu proyecto los necesita
+      - name: Instalar herramientas adicionales
+        run: sudo apt-get install -y cmake ninja-build
+
+      - name: Cache de Rust (Cargo)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Instalar dependencias del frontend
+        run: pnpm install
+
+      # Inicializa el proyecto para Android si no existe (no falla si ya está)
+      - name: Inicializar Tauri Android
+        run: pnpm tauri android init || true
+
+      # Genera el APK de depuración (debug)
+      - name: Compilar APK (debug)
+        run: pnpm tauri android build
+
+      # Sube el APK como artefacto descargable
+      - name: Subir APK como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: bookhive-android-debug
+          path: src-tauri/gen/android/app/build/outputs/apk/debug/*.apk

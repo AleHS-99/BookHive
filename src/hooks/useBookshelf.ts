@@ -6,11 +6,6 @@ import { isTauri } from '../utils/platform';
 
 const PAGE_SIZE = 50;
 
-type CoverUpdatedPayload = {
-  bookId: string;
-  imageUrl: string;
-};
-
 const updateBookInNodes = (
   nodes: (Folder | Book)[],
   bookId: string,

@@ -26,7 +26,6 @@ export const FolderActionsModal = ({
   // Summary para eliminación
   const [summary, setSummary] = useState<{ subfolders: number; books: number } | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
-  const [forceDelete, setForceDelete] = useState(false);
 
   // Obtener summary cuando se abre la sección de eliminar
   useEffect(() => {

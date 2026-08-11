@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { clsx } from 'clsx';
-import { GRADIENTS } from '../../data/lectulandiaMock';
 import { DiscoverBook } from '../../types';
 import { BookOpen } from 'lucide-react';
 
@@ -29,10 +28,7 @@ export const BookCard = ({
     >
       <div
         className={clsx(
-          'aspect-[2/3] rounded-lg shadow-md overflow-hidden transition-all group-hover:scale-[1.04] group-hover:shadow-lg relative',
-          !hasCover &&
-            'bg-gradient-to-br flex flex-col justify-between p-3',
-          !hasCover && GRADIENTS[(book.title.length + book.id.length) % GRADIENTS.length]
+          'aspect-[2/3] rounded-lg shadow-md overflow-hidden transition-all group-hover:scale-[1.04] group-hover:shadow-lg relative bg-gray-100'
         )}
       >
         {hasCover ? (
@@ -58,21 +54,10 @@ export const BookCard = ({
             </div>
           </>
         ) : (
-          <>
-            <span className="text-[9px] uppercase tracking-widest text-white/60">
-              Lectulandia
-            </span>
-            <div>
-              <p className="text-white text-sm font-semibold leading-tight line-clamp-3">
-                {book.title}
-              </p>
-              {book.author && (
-                <p className="text-white/70 text-[11px] mt-1 line-clamp-1">
-                  {book.author}
-                </p>
-              )}
-            </div>
-          </>
+          <div className="w-full h-full flex flex-col items-center justify-center p-3 text-gray-400">
+            <BookOpen className="w-8 h-8 mb-2" />
+            <p className="text-xs text-center line-clamp-2">{book.title}</p>
+          </div>
         )}
       </div>
 

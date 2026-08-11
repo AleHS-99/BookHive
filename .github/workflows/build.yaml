@@ -3,8 +3,9 @@ name: Build BookHive App
 on:
   workflow_dispatch:          # Ejecución manual desde Actions
   push:
+    branches: [ develop ]     # Ejecutar en pushes a develop
     tags:
-      - 'v*'                  # Al crear un tag como v1.0.0, v2.0.0-beta, etc.
+      - 'v*'                  # Al crear un tag como v1.0.0
 
 permissions:
   contents: write
@@ -13,6 +14,9 @@ jobs:
   # ============ WINDOWS ============
   build-windows:
     name: Build Windows
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
     steps:
       - name: Checkout código
@@ -55,6 +59,9 @@ jobs:
   # ============ LINUX ============
   build-linux:
     name: Build Linux
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout código
@@ -162,75 +169,63 @@ jobs:
             echo "✅ Proyecto Android ya inicializado"
           fi
 
-      # Verificar la estructura del proyecto Android
-      - name: Verificar estructura Android
-        run: |
-          echo "📁 Estructura de src-tauri/gen/android:"
-          ls -la src-tauri/gen/android/app/build/outputs/apk/ || echo "⚠️ La carpeta outputs/apk no existe aún"
-          echo ""
-          echo "📁 Estructura completa de gen/android:"
-          find src-tauri/gen/android -type f -name "*.gradle" | head -10
-
-      # Construir APK - PRIMER INTENTO: debug build
-      - name: Build APK (debug)
-        run: pnpm tauri android build
+      # 🔥 GENERAR APK DEBUG (para instalar directamente)
+      - name: Build APK Debug (firmado automáticamente)
+        run: pnpm tauri android build --apk --debug
         continue-on-error: true
 
-      # Si falla, intentar con un build más detallado
-      - name: Si falló, intentar build con verbose
+      # Si falla debug, intentar con gradle directamente
+      - name: Si falla, build con Gradle (debug)
         if: failure()
         run: |
-          echo "🔧 Intentando build con más detalle..."
-          cd src-tauri
-          cargo build --target aarch64-linux-android
-          cd ..
-          pnpm tauri android build -- --verbose
+          cd src-tauri/gen/android
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
-      # Buscar APK en diferentes ubicaciones posibles
-      - name: Buscar APK generado
-        id: find_apk
+      # 🔥 Buscar APK debug
+      - name: Buscar APK Debug
+        id: find_debug_apk
         run: |
-          APK_PATH=""
+          DEBUG_APK=$(find src-tauri/gen/android -name "*debug*.apk" 2>/dev/null | head -1)
           
-          # Buscar en ubicaciones comunes
-          LOCATIONS=(
-            "src-tauri/gen/android/app/build/outputs/apk/debug/*.apk"
-            "src-tauri/gen/android/app/build/outputs/apk/*/*.apk"
-            "src-tauri/gen/android/app/build/outputs/apk/*.apk"
-            "src-tauri/gen/android/app/build/outputs/*.apk"
-            "src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk"
-          )
-          
-          for LOC in "${LOCATIONS[@]}"; do
-            if ls $LOC 2>/dev/null | grep -q .; then
-              APK_PATH=$(ls $LOC 2>/dev/null | head -1)
-              echo "✅ APK encontrado en: $APK_PATH"
-              break
-            fi
-          done
-          
-          if [ -n "$APK_PATH" ]; then
+          if [ -n "$DEBUG_APK" ]; then
+            echo "✅ APK Debug encontrado: $DEBUG_APK"
             echo "apk_found=true" >> $GITHUB_OUTPUT
-            echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+            echo "apk_path=$DEBUG_APK" >> $GITHUB_OUTPUT
           else
-            echo "❌ No se encontró ningún APK"
+            echo "❌ No se encontró APK Debug"
             echo "apk_found=false" >> $GITHUB_OUTPUT
-            echo "📁 Contenido de build/outputs:"
-            find src-tauri/gen/android -type d -name "outputs" -exec ls -la {} \;
+            
+            # Buscar cualquier APK
+            ANY_APK=$(find src-tauri/gen/android -name "*.apk" 2>/dev/null | head -1)
+            if [ -n "$ANY_APK" ]; then
+              echo "ℹ️ Pero se encontró APK release: $ANY_APK"
+              echo "release_apk_found=true" >> $GITHUB_OUTPUT
+              echo "release_apk_path=$ANY_APK" >> $GITHUB_OUTPUT
+            fi
           fi
 
-      # Subir APK si se encontró
-      - name: Subir APK como artefacto
-        if: steps.find_apk.outputs.apk_found == 'true'
+      # Subir APK Debug si existe
+      - name: Subir APK Debug
+        if: steps.find_debug_apk.outputs.apk_found == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: bookhive-android-debug
-          path: ${{ steps.find_apk.outputs.apk_path }}
-          if-no-files-found: warn
+          path: ${{ steps.find_debug_apk.outputs.apk_path }}
+          if-no-files-found: ignore
 
-      # Si no se encontró APK, subir logs para depuración
-      - name: Subir logs de build si falló
-        if: steps.find_apk.outputs.apk_found == 'false'
+      # Subir APK Release (unsigned) como alternativa
+      - name: Subir APK Release (unsigned)
+        if: steps.find_debug_apk.outputs.release_apk_found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bookhive-android-release-unsigned
+          path: ${{ steps.find_debug_apk.outputs.release_apk_path }}
+          if-no-files-found: ignore
+
+      # Subir logs si todo falla
+      - name: Subir logs de build si todo falló
+        if: steps.find_debug_apk.outputs.apk_found == 'false' && steps.find_debug_apk.outputs.release_apk_found == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: android-build-logs

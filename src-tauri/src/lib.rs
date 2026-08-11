@@ -19,6 +19,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .register_uri_scheme_protocol(
             "cover",
             |ctx: tauri::UriSchemeContext<'_, tauri::Wry>,
@@ -92,6 +93,13 @@ pub fn run() {
             commands::library::process_pending_metadata,
             commands::library::get_book_properties,
             commands::library::rename_book_file,
+            commands::library::open_book_external,
+            commands::folder::rename_folder,
+            commands::folder::delete_folder,
+            commands::folder::get_folder_summary,
+            commands::folder::delete_folder,  // Actualizar el existente
+            commands::library::delete_book,
+            commands::library::import_books,
         ])
         .run(tauri::generate_context!())
         .expect("error while running BookHive");

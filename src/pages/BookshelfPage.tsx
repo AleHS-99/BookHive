@@ -1,12 +1,16 @@
 import { useCallback, useState } from 'react';
-import { Search, Filter, Plus, RefreshCw, X } from 'lucide-react';
+import { Search, Plus, RefreshCw, X } from 'lucide-react';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useBookshelf } from '../hooks/useBookshelf';
 import { useBookSearch } from '../hooks/useBookSearch';
 import { TreeNode } from '../components/bookshelf/TreeNode';
 import { SearchResultItem } from '../components/bookshelf/SearchResultItem';
 import { MoveBookModal } from '../components/bookshelf/MoveBookModal';
 import { BookPropertiesModal } from '../components/bookshelf/BookPropertiesModal';
+import { FolderActionsModal } from '../components/bookshelf/FolderActionsModal';
+import { AddBooksModal } from '../components/bookshelf/AddBooksModal';
 import { Book } from '../types';
+import { isTauri } from '../utils/platform';
 
 export const BookshelfPage = () => {
   const bookshelf = useBookshelf();
@@ -17,6 +21,70 @@ export const BookshelfPage = () => {
 
   // Estado para modal de propiedades
   const [propertiesBookId, setPropertiesBookId] = useState<string | null>(null);
+
+  // Estado para modal de acciones de carpeta
+  const [folderActionsTarget, setFolderActionsTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  // Estado para modal de añadir libros
+  const [addBookFiles, setAddBookFiles] = useState<string[] | null>(null);
+
+  // Handler para el botón "+"
+  const handleAddBooks = useCallback(async () => {
+    if (!isTauri()) return;
+
+    try {
+      const selected = await open({
+        multiple: true,
+        filters: [
+          {
+            name: 'Libros',
+            extensions: ['epub', 'pdf'],
+          },
+        ],
+        title: 'Selecciona los libros que quieres añadir',
+      });
+
+      if (selected && Array.isArray(selected) && selected.length > 0) {
+        setAddBookFiles(selected as string[]);
+      }
+    } catch (err) {
+      console.error('Error abriendo diálogo de archivos:', err);
+    }
+  }, []);
+
+  const closeAddBooks = useCallback(() => {
+    setAddBookFiles(null);
+  }, []);
+
+  const handleBooksImported = useCallback(() => {
+    void bookshelf.refresh();
+
+    if (search.activeQuery.trim()) {
+      search.submitSearch();
+    }
+  }, [bookshelf, search]);
+
+  const handleBookDeleted = useCallback(() => {
+    void bookshelf.refresh();
+    if (search.activeQuery.trim()) {
+      search.submitSearch();
+    }
+  }, [bookshelf, search]);
+
+  const openFolderActions = useCallback((folderId: string, folderName: string) => {
+    setFolderActionsTarget({ id: folderId, name: folderName });
+  }, []);
+
+  const closeFolderActions = useCallback(() => {
+    setFolderActionsTarget(null);
+  }, []);
+
+  const handleFolderUpdated = useCallback(() => {
+    void bookshelf.refresh();
+  }, [bookshelf]);
 
   // Handlers para mover libro
   const openMoveBook = useCallback((book: Book) => {
@@ -30,7 +98,6 @@ export const BookshelfPage = () => {
   const handleMoved = useCallback(() => {
     setMoveBookTarget(null);
     void bookshelf.refresh();
-
     if (search.activeQuery.trim()) {
       search.submitSearch();
     }
@@ -47,7 +114,6 @@ export const BookshelfPage = () => {
 
   const handlePropertiesUpdated = useCallback(() => {
     void bookshelf.refresh();
-
     if (search.activeQuery.trim()) {
       search.submitSearch();
     }
@@ -56,7 +122,6 @@ export const BookshelfPage = () => {
   // Handler para refresh
   const handleRefresh = useCallback(() => {
     void bookshelf.refresh();
-
     if (search.activeQuery.trim()) {
       search.submitSearch();
     }
@@ -69,7 +134,7 @@ export const BookshelfPage = () => {
     <div className="max-w-7xl mx-auto relative h-full">
       {/* Header */}
       <div className="flex items-center justify-between py-6 pt-4 md:pt-8">
-        <div className="flex-1 md:flex-none flex items-center gap-4 w-full md:w-auto md:ml-8">
+        <div className="flex-1 flex items-center gap-4 w-full md:w-auto">
           {/* Search form */}
           <form
             onSubmit={(e) => {
@@ -106,9 +171,13 @@ export const BookshelfPage = () => {
             )}
           </form>
 
-          {/* Filter button (sin lógica por ahora) */}
-          <button className="p-2 text-gray-500 hover:text-gray-700 bg-white border border-gray-200 rounded-xl">
-            <Filter className="w-5 h-5" />
+          {/* Add books button */}
+          <button
+            onClick={handleAddBooks}
+            className="p-2 text-gray-500 hover:text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+            aria-label="Añadir libros"
+          >
+            <Plus className="w-5 h-5" />
           </button>
 
           {/* Refresh */}
@@ -128,9 +197,6 @@ export const BookshelfPage = () => {
       {/* Content */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         {isSearching ? (
-          /* ============================= */
-          /*        SEARCH RESULTS        */
-          /* ============================= */
           <>
             {search.loading ? (
               <div className="p-8 text-center text-gray-400">
@@ -161,6 +227,7 @@ export const BookshelfPage = () => {
                     book={book}
                     onMoveBook={openMoveBook}
                     onViewProperties={openProperties}
+                    onDeleted={handleBookDeleted}
                   />
                 ))}
 
@@ -179,9 +246,6 @@ export const BookshelfPage = () => {
             )}
           </>
         ) : (
-          /* ============================= */
-          /*      LAZY BOOKSHELF TREE     */
-          /* ============================= */
           <>
             {bookshelf.loading ? (
               <div className="p-8 text-center text-gray-400">
@@ -189,9 +253,7 @@ export const BookshelfPage = () => {
               </div>
             ) : bookshelf.error ? (
               <div className="p-8 text-center text-red-500">
-                <p className="font-medium mb-2">
-                  Error cargando la biblioteca
-                </p>
+                <p className="font-medium mb-2">Error cargando la biblioteca</p>
                 <p className="text-sm">{bookshelf.error}</p>
               </div>
             ) : bookshelf.items.length === 0 ? (
@@ -200,8 +262,8 @@ export const BookshelfPage = () => {
                   Tu biblioteca está vacía
                 </p>
                 <p className="text-sm text-gray-400 mt-2">
-                  Agrega archivos .epub o .pdf dentro de la carpeta
-                  seleccionada y presiona Actualizar.
+                  Agrega archivos .epub o .pdf dentro de la carpeta seleccionada
+                  y presiona Actualizar, o usa el botón + para añadir libros.
                 </p>
                 <button
                   onClick={handleRefresh}
@@ -221,6 +283,8 @@ export const BookshelfPage = () => {
                     folderPagination={bookshelf.folderPagination}
                     onMoveBook={openMoveBook}
                     onViewProperties={openProperties}
+                    onFolderActions={openFolderActions}
+                    onDeleted={handleBookDeleted}
                   />
                 ))}
 
@@ -241,14 +305,6 @@ export const BookshelfPage = () => {
         )}
       </div>
 
-      {/* Floating Action Button (sin lógica por ahora) */}
-      <div className="fixed bottom-24 md:bottom-8 left-1/2 md:left-1/2 z-10 hidden md:block">
-        <button className="flex items-center gap-2 bg-[#FEF3C7] text-[#92400E] px-5 py-3 rounded-xl shadow-lg hover:bg-[#FDE68A] transition-colors font-medium">
-          <Plus className="w-5 h-5" />
-          New Group
-        </button>
-      </div>
-
       {/* Move Book Modal */}
       {moveBookTarget && (
         <MoveBookModal
@@ -266,6 +322,25 @@ export const BookshelfPage = () => {
           onUpdated={handlePropertiesUpdated}
         />
       )}
+
+      {/* Folder Actions Modal */}
+      {folderActionsTarget && (
+        <FolderActionsModal
+          folderId={folderActionsTarget.id}
+          folderName={folderActionsTarget.name}
+          onClose={closeFolderActions}
+          onUpdated={handleFolderUpdated}
+        />
+      )}
+
+      {/* Add Books Modal */}
+      {addBookFiles && (
+        <AddBooksModal
+          filePaths={addBookFiles}
+          onClose={closeAddBooks}
+          onImported={handleBooksImported}
+        />
+      )}
     </div>
   );
-};  
+};

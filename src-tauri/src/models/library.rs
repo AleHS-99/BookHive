@@ -34,10 +34,15 @@ pub struct BookRow {
     pub format: String,
     pub cover_status: String,
     pub cover_cache_key: Option<String>,
+    #[allow(dead_code)]
     pub language: Option<String>,
+    #[allow(dead_code)]
     pub description: Option<String>,
+    #[allow(dead_code)]
     pub publisher: Option<String>,
+    #[allow(dead_code)]
     pub published_date: Option<String>,
+    #[allow(dead_code)]
     pub metadata_status: String,
 }
 
@@ -51,6 +56,7 @@ pub struct PendingCover {
 #[derive(Debug, Clone)]
 pub struct FolderSummaryRow {
     pub id: i64,
+    #[allow(dead_code)]
     pub parent_id: Option<i64>,
     pub name: String,
     pub count: i64,
@@ -59,6 +65,7 @@ pub struct FolderSummaryRow {
 #[derive(Debug, Clone)]
 pub struct BookCoverState {
     pub id: i64,
+    #[allow(dead_code)]
     pub format: String,
     pub is_missing: i64,
     pub cover_cache_key: String,

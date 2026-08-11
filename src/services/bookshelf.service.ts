@@ -166,5 +166,88 @@ export const BookshelfService = {
       newName,
     });
   },
+  openBookExternal: async (bookId: string): Promise<void> => {
+    if (!isTauri()) return;
+
+    const numericId = parseBookId(bookId);
+    if (numericId === null) {
+      throw new Error('Book id inválido.');
+    }
+
+    await invoke('open_book_external', {
+      bookId: numericId,
+    });
+  },
+  renameFolder: async (folderId: string, newName: string): Promise<void> => {
+    if (!isTauri()) return;
+
+    const numericId = parseFolderId(folderId);
+    if (numericId === null) {
+      throw new Error('Folder id inválido.');
+    }
+
+    await invoke('rename_folder', {
+      folderId: numericId,
+      newName,
+    });
+  },
+
+  getFolderSummary: async (folderId: string): Promise<{ subfolders: number; books: number }> => {
+    if (!isTauri()) {
+      return { subfolders: 0, books: 0 };
+    }
+
+    const numericId = parseFolderId(folderId);
+    if (numericId === null) {
+      throw new Error('Folder id inválido.');
+    }
+
+    const result = await invoke<[number, number]>('get_folder_summary', {
+      folderId: numericId,
+    });
+
+    return {
+      subfolders: result[0],
+      books: result[1],
+    };
+  },
+
+  deleteFolder: async (folderId: string, force: boolean): Promise<void> => {
+    if (!isTauri()) return;
+
+    const numericId = parseFolderId(folderId);
+    if (numericId === null) {
+      throw new Error('Folder id inválido.');
+    }
+
+    await invoke('delete_folder', {
+      folderId: numericId,
+      force,
+    });
+  },
+
+  deleteBook: async (bookId: string): Promise<void> => {
+    if (!isTauri()) return;
+
+    const numericId = parseBookId(bookId);
+    if (numericId === null) {
+      throw new Error('Book id inválido.');
+    }
+
+    await invoke('delete_book', {
+      bookId: numericId,
+    });
+  },
+  importBooks: async (
+    filePaths: string[],
+    targetFolderId: string | null
+  ): Promise<number> => {
+    if (!isTauri()) return 0;
+
+    return invoke<number>('import_books', {
+      filePaths,
+      targetFolderId: parseFolderId(targetFolderId),
+    });
+  },
 };
 

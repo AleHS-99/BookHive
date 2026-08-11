@@ -50,3 +50,46 @@ pub fn move_book(
 
     folder_service::move_book(&app, &conn, book_id, target_folder_id)
 }
+
+#[tauri::command]
+pub fn rename_folder(
+    db: State<'_, Db>,
+    app: AppHandle,
+    folder_id: i64,
+    new_name: String,
+) -> Result<(), String> {
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+
+    folder_service::rename_folder(&app, &conn, folder_id, &new_name)
+}
+
+#[tauri::command]
+pub fn get_folder_summary(
+    db: State<'_, Db>,
+    folder_id: i64,
+) -> Result<(i64, i64), String> {
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+
+    crate::services::folder_service::get_folder_summary(&conn, folder_id)
+}
+
+#[tauri::command]
+pub fn delete_folder(
+    db: State<'_, Db>,
+    app: AppHandle,
+    folder_id: i64,
+    force: bool,
+) -> Result<(), String> {
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+
+    crate::services::folder_service::delete_folder(&app, &conn, folder_id, force)
+}

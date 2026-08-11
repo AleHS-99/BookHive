@@ -1,5 +1,6 @@
 use crate::models::{BookRow, PendingCover};
 use rusqlite::{params, Connection};
+use rusqlite::OptionalExtension;
 
 pub fn mark_all_books_missing(conn: &Connection) -> Result<(), String> {
     conn.execute("UPDATE books SET is_missing = 1", params![])
@@ -714,4 +715,23 @@ pub fn file_name_exists_in_folder(
     count
         .map(|c: i64| c > 0)
         .map_err(|e| format!("Error verificando nombre de archivo: {e}"))
+}
+
+pub fn get_book_relative_path(conn: &Connection, id: i64) -> Result<Option<String>, String> {
+    conn.query_row(
+        "SELECT relative_path FROM books WHERE id = ?1",
+        params![id],
+        |row| row.get(0),
+    )
+    .optional()
+    .map_err(|e| format!("Error obteniendo ruta de libro: {e}"))
+}
+
+
+pub fn delete_book_from_db(conn: &Connection, id: i64) -> Result<u64, String> {
+    let affected = conn
+        .execute("DELETE FROM books WHERE id = ?1", params![id])
+        .map_err(|e| format!("Error eliminando libro de la base de datos: {e}"))?;
+
+    Ok(affected as u64)
 }

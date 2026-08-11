@@ -16,6 +16,8 @@ interface TreeNodeProps {
   folderPagination: Record<string, FolderPaginationState>;
   onMoveBook?: (book: Book) => void;
   onViewProperties?: (book: Book) => void;
+  onFolderActions?: (folderId: string, folderName: string) => void;
+  onDeleted?: () => void;
 }
 
 export const TreeNode = ({
@@ -25,6 +27,8 @@ export const TreeNode = ({
   folderPagination,
   onMoveBook,
   onViewProperties,
+  onFolderActions,
+  onDeleted,
 }: TreeNodeProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -36,6 +40,7 @@ export const TreeNode = ({
         level={level}
         onMoveBook={onMoveBook}
         onViewProperties={onViewProperties}
+        onDeleted={onDeleted}
       />
     );
   }
@@ -99,7 +104,10 @@ export const TreeNode = ({
             <button
               type="button"
               className="text-gray-300 group-hover:text-gray-600 p-1 rounded-full group-hover:bg-gray-200 transition-colors"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onFolderActions?.(folder.id, folder.name);
+              }}
             >
               <MoreVertical className="w-4 h-4" />
             </button>
@@ -130,6 +138,8 @@ export const TreeNode = ({
             folderPagination={folderPagination}
             onMoveBook={onMoveBook}
             onViewProperties={onViewProperties}
+            onFolderActions={onFolderActions}
+            onDeleted={onDeleted}
           />
         ))}
 

@@ -295,3 +295,65 @@ pub fn rename_book_file(
 
     crate::services::book_service::rename_book_file(&app, &conn, book_id, &new_name)
 }
+
+use tauri_plugin_opener::OpenerExt;
+
+#[tauri::command]
+pub fn open_book_external(
+    db: State<'_, Db>,
+    app: AppHandle,
+    book_id: i64,
+) -> Result<(), String> {
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+
+    let library_path = settings_repository::get_library_path(&conn)?
+        .ok_or_else(|| "No hay carpeta de biblioteca configurada.".to_string())?;
+
+    let relative_path = book_repository::get_book_relative_path(&conn, book_id)?
+        .ok_or_else(|| "Libro no encontrado.".to_string())?;
+
+    let root = PathBuf::from(library_path);
+    let full_path = root.join(&relative_path);
+
+    if !full_path.exists() {
+        return Err("El archivo no existe en el sistema de archivos.".to_string());
+    }
+
+    app.opener()
+        .open_path(full_path.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|e| format!("No se pudo abrir el archivo: {e}"))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_book(
+    db: State<'_, Db>,
+    app: AppHandle,
+    book_id: i64,
+) -> Result<(), String> {
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+
+    crate::services::book_service::delete_book(&app, &conn, book_id)
+}
+
+#[tauri::command]
+pub fn import_books(
+    db: State<'_, Db>,
+    app: AppHandle,
+    file_paths: Vec<String>,
+    target_folder_id: Option<i64>,
+) -> Result<u32, String> {
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+
+    crate::services::book_service::import_books(&app, &conn, &file_paths, target_folder_id)
+}

@@ -3,6 +3,7 @@ use serde::Serialize;
 #[derive(Debug, Clone)]
 pub struct SearchBookRow {
     pub id: i64,
+    #[allow(dead_code)]
     pub folder_id: Option<i64>,
     pub title: String,
     pub author: Option<String>,

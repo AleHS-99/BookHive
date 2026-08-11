@@ -1,4 +1,5 @@
 use crate::models::FolderRow;
+use rusqlite::OptionalExtension;
 use rusqlite::{params, Connection};
 
 pub fn upsert_folder(
@@ -319,4 +320,157 @@ pub fn insert_folder(
     .map_err(|e| format!("Error insertando carpeta: {e}"))?;
 
     Ok(conn.last_insert_rowid())
+}
+
+pub fn get_folder_by_id(conn: &Connection, id: i64) -> Result<Option<(i64, Option<i64>, String, String)>, String> {
+    conn.query_row(
+        "SELECT id, parent_id, name, relative_path FROM folders WHERE id = ?1",
+        params![id],
+        |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+            ))
+        },
+    )
+    .optional()
+    .map_err(|e| format!("Error obteniendo carpeta: {e}"))
+}
+
+pub fn rename_folder_in_db(
+    conn: &Connection,
+    folder_id: i64,
+    new_name: &str,
+    new_relative_path: &str,
+) -> Result<(), String> {
+    conn.execute(
+        "UPDATE folders SET name = ?1, relative_path = ?2, updated_at = datetime('now') WHERE id = ?3",
+        params![new_name, new_relative_path, folder_id],
+    )
+    .map_err(|e| format!("Error renombrando carpeta: {e}"))?;
+
+    Ok(())
+}
+
+pub fn update_children_paths(
+    conn: &Connection,
+    old_prefix: &str,
+    new_prefix: &str,
+) -> Result<(), String> {
+    // Actualizar rutas de subcarpetas
+    conn.execute(
+        "UPDATE folders
+         SET relative_path = ?1 || SUBSTR(relative_path, LENGTH(?2) + 1)
+         WHERE relative_path LIKE ?2 || '/%'",
+        params![new_prefix, old_prefix],
+    )
+    .map_err(|e| format!("Error actualizando rutas de subcarpetas: {e}"))?;
+
+    // Actualizar rutas de libros
+    conn.execute(
+        "UPDATE books
+         SET relative_path = ?1 || SUBSTR(relative_path, LENGTH(?2) + 1)
+         WHERE relative_path LIKE ?2 || '/%'",
+        params![new_prefix, old_prefix],
+    )
+    .map_err(|e| format!("Error actualizando rutas de libros: {e}"))?;
+
+    Ok(())
+}
+
+pub fn delete_folder_from_db(conn: &Connection, folder_id: i64) -> Result<(), String> {
+    conn.execute(
+        "DELETE FROM folders WHERE id = ?1",
+        params![folder_id],
+    )
+    .map_err(|e| format!("Error eliminando carpeta de la base de datos: {e}"))?;
+
+    Ok(())
+}
+
+pub fn count_all_children_recursive(
+    conn: &Connection,
+    _folder_id: i64,
+    relative_path: &str,
+) -> Result<(i64, i64), String> {
+    // Contar subcarpetas recursivas
+    let subfolders: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM folders
+             WHERE relative_path LIKE ?1 || '/%'",
+            params![relative_path],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Error contando subcarpetas recursivas: {e}"))?;
+
+    // Contar libros recursivos (en esta carpeta y todas las subcarpetas)
+    let books: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM books
+             WHERE (relative_path LIKE ?1 || '/%')
+               AND is_missing = 0",
+            params![relative_path],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Error contando libros recursivos: {e}"))?;
+
+    Ok((subfolders, books))
+}
+
+pub fn get_all_book_cover_keys_in_folder(
+    conn: &Connection,
+    relative_path: &str,
+) -> Result<Vec<String>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT cover_cache_key
+             FROM books
+             WHERE relative_path LIKE ?1 || '/%'
+               AND cover_cache_key IS NOT NULL
+               AND is_missing = 0",
+        )
+        .map_err(|e| format!("Error preparando consulta de covers: {e}"))?;
+
+    let rows = stmt
+        .query_map(params![relative_path], |row| row.get(0))
+        .map_err(|e| format!("Error consultando covers: {e}"))?;
+
+    let mut keys = Vec::new();
+    for key in rows {
+        keys.push(key.map_err(|e| format!("Error leyendo cover key: {e}"))?);
+    }
+
+    Ok(keys)
+}
+
+pub fn delete_books_in_folder_recursive(
+    conn: &Connection,
+    relative_path: &str,
+) -> Result<u64, String> {
+    let affected = conn
+        .execute(
+            "DELETE FROM books WHERE relative_path LIKE ?1 || '/%'",
+            params![relative_path],
+        )
+        .map_err(|e| format!("Error eliminando libros recursivamente: {e}"))?;
+
+    Ok(affected as u64)
+}
+
+pub fn delete_subfolders_recursive(
+    conn: &Connection,
+    relative_path: &str,
+) -> Result<u64, String> {
+    let affected = conn
+        .execute(
+            "DELETE FROM folders WHERE relative_path LIKE ?1 || '/%'",
+            params![relative_path],
+        )
+        .map_err(|e| format!("Error eliminando subcarpetas recursivamente: {e}"))?;
+
+    Ok(affected as u64)
 }

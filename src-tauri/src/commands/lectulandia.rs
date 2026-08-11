@@ -44,17 +44,14 @@ pub async fn discover_book_detail(url: String) -> Result<DiscoverBookDetail, Str
 pub async fn discover_download_book(
     db: State<'_, Db>,
     _app: AppHandle,
-    book_url: String,
+    download_page_url: String,
 ) -> Result<DownloadResult, String> {
-    // 1) Obtener detalle para llegar al download_page_url.
-    let detail = lectulandia::get_book_detail(&book_url).await?;
-
-    // 2) Resolver el link directo.
+    // 1) Resolver el link directo de descarga.
     let http = lectulandia::client::build_client()?;
     let (file_name, direct_url) =
-        lectulandia::download::resolve_download(&http, &detail.download_page_url).await?;
+        lectulandia::download::resolve_download(&http, &download_page_url).await?;
 
-    // 3) Descargar a un archivo temporal.
+    // 2) Descargar a un archivo temporal.
     let temp_dir = std::env::temp_dir();
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -65,7 +62,7 @@ pub async fn discover_download_book(
 
     let bytes = lectulandia::download::download_to_file(&http, &direct_url, &temp_path).await?;
 
-    // 4) Importar a la biblioteca (raíz) reutilizando la lógica existente.
+    // 3) Importar a la biblioteca (raíz) reutilizando la lógica existente.
     let conn = db
         .0
         .lock()
@@ -93,3 +90,4 @@ pub async fn discover_download_book(
         saved_path: saved_path.to_string_lossy().to_string(),
     })
 }
+

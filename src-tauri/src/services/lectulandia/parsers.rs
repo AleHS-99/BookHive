@@ -1,6 +1,6 @@
 use scraper::{Html, Selector};
 
-use crate::models::{DiscoverBookDetail, DiscoverBookSummary, DiscoverCategory};
+use crate::models::{DiscoverBookDetail, DiscoverBookSummary, DiscoverCategory, DownloadLink};
 use super::client::to_absolute_url;
 
 fn sel(css: &str) -> Selector {
@@ -15,8 +15,34 @@ fn text_of(el: &scraper::ElementRef) -> String {
     el.text().collect::<String>().trim().to_string()
 }
 
-/// Parsea una página que contiene tarjetas `.card` (home, búsqueda, categoría).
-/// Devuelve los libros y si hay página siguiente.
+/// Detecta el formato de un enlace de descarga según su texto o URL.
+fn detect_format(label: &str, url: &str) -> String {
+    let lower = format!("{label} {url}").to_lowercase();
+
+    if lower.contains("epub") {
+        "epub".to_string()
+    } else if lower.contains("pdf") {
+        "pdf".to_string()
+    } else {
+        "other".to_string()
+    }
+}
+
+/// Normaliza la etiqueta del enlace para mostrarla en el frontend.
+fn normalize_label(label: &str, format: &str) -> String {
+    let trimmed = label.trim();
+
+    if trimmed.is_empty() {
+        return match format {
+            "epub" => "EPUB".to_string(),
+            "pdf" => "PDF".to_string(),
+            _ => "Descargar".to_string(),
+        };
+    }
+
+    trimmed.to_string()
+}
+
 pub fn parse_books_page(html: &str) -> (Vec<DiscoverBookSummary>, bool) {
     let document = Html::parse_document(html);
 
@@ -64,8 +90,6 @@ pub fn parse_books_page(html: &str) -> (Vec<DiscoverBookSummary>, bool) {
     (items, has_more)
 }
 
-/// Detecta si hay página siguiente buscando un link "next".
-/// Si no lo encuentra, asume que hay más solo si la página actual tuvo resultados.
 fn detect_has_more(document: &Html, items_empty: bool) -> bool {
     let next_candidates = [
         "a.next.page-numbers",
@@ -85,7 +109,6 @@ fn detect_has_more(document: &Html, items_empty: bool) -> bool {
     !items_empty
 }
 
-/// Parsea la lista de géneros/categorías del home (#secgenero).
 pub fn parse_categories(html: &str) -> Vec<DiscoverCategory> {
     let document = Html::parse_document(html);
 
@@ -111,7 +134,6 @@ pub fn parse_categories(html: &str) -> Vec<DiscoverCategory> {
         .collect()
 }
 
-/// Parsea la página de detalle de un libro.
 pub fn parse_book_detail(html: &str) -> Result<DiscoverBookDetail, String> {
     let document = Html::parse_document(html);
 
@@ -134,7 +156,6 @@ pub fn parse_book_detail(html: &str) -> Result<DiscoverBookDetail, String> {
         .map(|a| text_of(&a))
         .filter(|s| !s.is_empty());
 
-    // Sinopsis con varios fallbacks (como hacía tu Python).
     let synopsis = ["#sinopsis span", "#description span", "#sinopsis p", "p.description"]
         .iter()
         .find_map(|css| {
@@ -145,19 +166,40 @@ pub fn parse_book_detail(html: &str) -> Result<DiscoverBookDetail, String> {
                 .filter(|s| !s.is_empty())
         });
 
-    let download_href = document
-        .select(&sel("#downloadContainer a"))
-        .next()
-        .and_then(|a| a.value().attr("href"))
-        .ok_or_else(|| "No se encontró el enlace de descarga.".to_string())?;
+    // Extraer TODOS los enlaces de descarga dentro de #downloadContainer.
+    let mut download_links: Vec<DownloadLink> = Vec::new();
 
-    let download_page_url = to_absolute_url(download_href);
+    if let Some(container) = document.select(&sel("#downloadContainer")).next() {
+        let link_sel = sel("a");
+
+        for link in container.select(&link_sel) {
+            let Some(href) = link.value().attr("href") else {
+                continue;
+            };
+
+            let raw_label = text_of(&link);
+            let url = to_absolute_url(href);
+
+            let format = detect_format(&raw_label, href);
+            let label = normalize_label(&raw_label, &format);
+
+            download_links.push(DownloadLink {
+                label,
+                format,
+                url,
+            });
+        }
+    }
+
+    if download_links.is_empty() {
+        return Err("No se encontraron enlaces de descarga para este libro.".to_string());
+    }
 
     Ok(DiscoverBookDetail {
         title,
         author,
         cover_url,
         synopsis,
-        download_page_url,
+        download_links,
     })
 }

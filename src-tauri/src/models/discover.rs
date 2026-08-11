@@ -21,6 +21,14 @@ pub struct DiscoverCategory {
     pub path: String,
 }
 
+/// Un enlace de descarga disponible para el libro (EPUB, PDF, etc.)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadLink {
+    pub label: String,
+    pub format: String,
+    pub url: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscoverBookDetail {
     pub title: String,
@@ -35,8 +43,8 @@ pub struct DiscoverBookDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub synopsis: Option<String>,
 
-    #[serde(rename = "downloadPageUrl")]
-    pub download_page_url: String,
+    #[serde(rename = "downloadLinks")]
+    pub download_links: Vec<DownloadLink>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

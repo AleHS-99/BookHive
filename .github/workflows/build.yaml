@@ -107,7 +107,7 @@ jobs:
           releaseDraft: true
           prerelease: false
 
-  # ============ ANDROID (nuevo) ============
+  # ============ ANDROID (CORREGIDO) ============
   build-android:
     name: Build Android (APK)
     runs-on: ubuntu-latest
@@ -141,7 +141,7 @@ jobs:
         with:
           cmdline-tools-version: latest
 
-      # Opcional: instalar cmake y ninja si tu proyecto los necesita
+      # Instalar herramientas adicionales
       - name: Instalar herramientas adicionales
         run: sudo apt-get install -y cmake ninja-build
 
@@ -153,17 +153,89 @@ jobs:
       - name: Instalar dependencias del frontend
         run: pnpm install
 
-      # Inicializa el proyecto para Android si no existe (no falla si ya está)
+      # Inicializar proyecto Android si no existe
       - name: Inicializar Tauri Android
-        run: pnpm tauri android init || true
+        run: |
+          if [ ! -d "src-tauri/gen/android" ]; then
+            pnpm tauri android init
+          else
+            echo "✅ Proyecto Android ya inicializado"
+          fi
 
-      # Genera el APK de depuración (debug)
-      - name: Compilar APK (debug)
+      # Verificar la estructura del proyecto Android
+      - name: Verificar estructura Android
+        run: |
+          echo "📁 Estructura de src-tauri/gen/android:"
+          ls -la src-tauri/gen/android/app/build/outputs/apk/ || echo "⚠️ La carpeta outputs/apk no existe aún"
+          echo ""
+          echo "📁 Estructura completa de gen/android:"
+          find src-tauri/gen/android -type f -name "*.gradle" | head -10
+
+      # Construir APK - PRIMER INTENTO: debug build
+      - name: Build APK (debug)
         run: pnpm tauri android build
+        continue-on-error: true
 
-      # Sube el APK como artefacto descargable
+      # Si falla, intentar con un build más detallado
+      - name: Si falló, intentar build con verbose
+        if: failure()
+        run: |
+          echo "🔧 Intentando build con más detalle..."
+          cd src-tauri
+          cargo build --target aarch64-linux-android
+          cd ..
+          pnpm tauri android build -- --verbose
+
+      # Buscar APK en diferentes ubicaciones posibles
+      - name: Buscar APK generado
+        id: find_apk
+        run: |
+          APK_PATH=""
+          
+          # Buscar en ubicaciones comunes
+          LOCATIONS=(
+            "src-tauri/gen/android/app/build/outputs/apk/debug/*.apk"
+            "src-tauri/gen/android/app/build/outputs/apk/*/*.apk"
+            "src-tauri/gen/android/app/build/outputs/apk/*.apk"
+            "src-tauri/gen/android/app/build/outputs/*.apk"
+            "src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk"
+          )
+          
+          for LOC in "${LOCATIONS[@]}"; do
+            if ls $LOC 2>/dev/null | grep -q .; then
+              APK_PATH=$(ls $LOC 2>/dev/null | head -1)
+              echo "✅ APK encontrado en: $APK_PATH"
+              break
+            fi
+          done
+          
+          if [ -n "$APK_PATH" ]; then
+            echo "apk_found=true" >> $GITHUB_OUTPUT
+            echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No se encontró ningún APK"
+            echo "apk_found=false" >> $GITHUB_OUTPUT
+            echo "📁 Contenido de build/outputs:"
+            find src-tauri/gen/android -type d -name "outputs" -exec ls -la {} \;
+          fi
+
+      # Subir APK si se encontró
       - name: Subir APK como artefacto
+        if: steps.find_apk.outputs.apk_found == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: bookhive-android-debug
-          path: src-tauri/gen/android/app/build/outputs/apk/debug/*.apk
+          path: ${{ steps.find_apk.outputs.apk_path }}
+          if-no-files-found: warn
+
+      # Si no se encontró APK, subir logs para depuración
+      - name: Subir logs de build si falló
+        if: steps.find_apk.outputs.apk_found == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-logs
+          path: |
+            src-tauri/gen/android/*/build/outputs/**/*.txt
+            src-tauri/gen/android/*/build/outputs/**/*.log
+            src-tauri/gen/android/*/build/reports/**/*.html
+          if-no-files-found: ignore

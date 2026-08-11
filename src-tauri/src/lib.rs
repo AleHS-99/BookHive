@@ -17,6 +17,7 @@ fn cover_error_response(status: u16, message: &str) -> tauri::http::Response<Vec
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .register_uri_scheme_protocol(
             "cover",
@@ -25,13 +26,12 @@ pub fn run() {
              -> tauri::http::Response<Vec<u8>> {
                 let app = ctx.app_handle();
 
-                let covers_dir =
-                    match crate::services::cover_service::covers_dir(app) {
-                        Ok(dir) => dir,
-                        Err(e) => {
-                            return cover_error_response(500, &e);
-                        }
-                    };
+                let covers_dir = match crate::services::cover_service::covers_dir(app) {
+                    Ok(dir) => dir,
+                    Err(e) => {
+                        return cover_error_response(500, &e);
+                    }
+                };
 
                 let path = request.uri().path();
                 let file_name = path.trim_start_matches('/');
@@ -42,18 +42,12 @@ pub fn run() {
                 {
                     Some(name) => name,
                     None => {
-                        return cover_error_response(
-                            400,
-                            "Nombre de cover inválido",
-                        );
+                        return cover_error_response(400, "Nombre de cover inválido");
                     }
                 };
 
                 if !file_name.ends_with(".webp") {
-                    return cover_error_response(
-                        400,
-                        "El cover solicitado debe ser .webp",
-                    );
+                    return cover_error_response(400, "El cover solicitado debe ser .webp");
                 }
 
                 let file_path = covers_dir.join(file_name);
@@ -61,10 +55,7 @@ pub fn run() {
                 let data = match std::fs::read(&file_path) {
                     Ok(data) => data,
                     Err(_) => {
-                        return cover_error_response(
-                            404,
-                            "Cover no encontrado",
-                        );
+                        return cover_error_response(404, "Cover no encontrado");
                     }
                 };
 
@@ -73,9 +64,7 @@ pub fn run() {
                     .header("Content-Type", "image/webp")
                     .header("Cache-Control", "public, max-age=604800")
                     .body(data)
-                    .unwrap_or_else(|_| {
-                        cover_error_response(500, "Error creando respuesta")
-                    })
+                    .unwrap_or_else(|_| cover_error_response(500, "Error creando respuesta"))
             },
         )
         .setup(|app| {
@@ -100,6 +89,9 @@ pub fn run() {
             commands::folder::get_folder_picker_children,
             commands::folder::create_folder,
             commands::folder::move_book,
+            commands::library::process_pending_metadata,
+            commands::library::get_book_properties,
+            commands::library::rename_book_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running BookHive");

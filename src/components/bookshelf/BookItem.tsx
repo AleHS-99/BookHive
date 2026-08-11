@@ -1,6 +1,8 @@
 import { MoreVertical, FileText, BookOpen } from 'lucide-react';
 import { Book } from '../../types';
 import { clsx } from 'clsx';
+import { getCoverSrc } from '../../utils/cover';
+import { ContextMenu } from '../ui/ContextMenu';
 
 const getPadding = (level: number) => {
   if (level <= 0) return 'pl-4';
@@ -9,31 +11,16 @@ const getPadding = (level: number) => {
   return 'pl-16';
 };
 
-const getCoverSrc = (url?: string): string | undefined => {
-  if (!url) return undefined;
-
-  if (url.startsWith('cover:')) {
-    return url;
-  }
-
-  if (
-    url.startsWith('http://') ||
-    url.startsWith('https://') ||
-    url.startsWith('data:') ||
-    url.startsWith('blob:')
-  ) {
-    return url;
-  }
-
-  return undefined;
-};
-
 export const BookItem = ({
   book,
   level,
+  onMoveBook,
+  onViewProperties,
 }: {
   book: Book;
   level: number;
+  onMoveBook?: (book: Book) => void;
+  onViewProperties?: (book: Book) => void;
 }) => {
   const coverSrc = getCoverSrc(book.imageUrl);
 
@@ -61,14 +48,26 @@ export const BookItem = ({
         </div>
       )}
 
+      {/* Info */}
       <div className="flex-1">
         <h3 className="font-medium text-sm text-gray-900">{book.title}</h3>
         <p className="text-xs text-gray-500">{book.author}</p>
       </div>
 
-      <button className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200">
-        <MoreVertical className="w-4 h-4" />
-      </button>
+      {/* Context Menu */}
+      <ContextMenu
+        trigger={<MoreVertical className="w-4 h-4" />}
+        items={[
+          {
+            label: 'Mover a carpeta',
+            onClick: () => onMoveBook?.(book),
+          },
+          {
+            label: 'Propiedades',
+            onClick: () => onViewProperties?.(book),
+          },
+        ]}
+      />
     </div>
   );
 };

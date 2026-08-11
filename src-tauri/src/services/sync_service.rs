@@ -6,10 +6,7 @@ use std::fs;
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
-pub fn sync_library(
-    conn: &Connection,
-    library_root: &Path,
-) -> Result<SyncSummary, String> {
+pub fn sync_library(conn: &Connection, library_root: &Path) -> Result<SyncSummary, String> {
     book_repository::mark_all_books_missing(conn)?;
 
     let existing_folder_ids = folder_repository::get_all_folder_ids(conn)?;

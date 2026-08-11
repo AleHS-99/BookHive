@@ -27,7 +27,10 @@ pub fn upsert_book(
         .query(params![relative_path])
         .map_err(|e| format!("Error consultando libro: {e}"))?;
 
-    if let Some(row) = rows.next().map_err(|e| format!("Error leyendo libro: {e}"))? {
+    if let Some(row) = rows
+        .next()
+        .map_err(|e| format!("Error leyendo libro: {e}"))?
+    {
         let id: i64 = row
             .get(0)
             .map_err(|e| format!("Error leyendo id de libro: {e}"))?;
@@ -58,6 +61,7 @@ pub fn upsert_book(
         Ok(id)
     } else {
         let cover_status = if format == "epub" { "pending" } else { "none" };
+        let metadata_status = if format == "epub" { "pending" } else { "none" };
 
         conn.execute(
             "INSERT INTO books (
@@ -67,11 +71,12 @@ pub fn upsert_book(
                 format,
                 title,
                 cover_status,
+                metadata_status,
                 file_size,
                 file_modified_at,
                 is_missing
              )
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0)",
             params![
                 folder_id,
                 relative_path,
@@ -79,6 +84,7 @@ pub fn upsert_book(
                 format,
                 title,
                 cover_status,
+                metadata_status,
                 file_size,
                 file_modified_at
             ],
@@ -89,44 +95,78 @@ pub fn upsert_book(
     }
 }
 
-pub fn get_visible_books(conn: &Connection) -> Result<Vec<BookRow>, String> {
+pub fn get_books_pending_metadata(conn: &Connection) -> Result<Vec<PendingCover>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT
-                id,
-                folder_id,
-                COALESCE(NULLIF(title, ''), file_name) AS title,
-                author,
-                format,
-                cover_status,
-                cover_cache_key
+            "SELECT id, relative_path, format
              FROM books
-             WHERE is_missing = 0
-             ORDER BY title COLLATE NOCASE",
+             WHERE metadata_status = 'pending'
+               AND format = 'epub'
+               AND is_missing = 0",
         )
-        .map_err(|e| format!("Error preparando consulta de libros: {e}"))?;
+        .map_err(|e| format!("Error preparando consulta de metadatos pendientes: {e}"))?;
 
     let rows = stmt
         .query_map([], |row| {
-            Ok(BookRow {
+            Ok(PendingCover {
                 id: row.get(0)?,
-                folder_id: row.get(1)?,
-                title: row.get(2)?,
-                author: row.get(3)?,
-                format: row.get(4)?,
-                cover_status: row.get(5)?,
-                cover_cache_key: row.get(6)?,
+                relative_path: row.get(1)?,
+                format: row.get(2)?,
             })
         })
-        .map_err(|e| format!("Error consultando libros: {e}"))?;
+        .map_err(|e| format!("Error consultando metadatos pendientes: {e}"))?;
 
     let mut books = Vec::new();
 
     for book in rows {
-        books.push(book.map_err(|e| format!("Error leyendo libro: {e}"))?);
+        books.push(book.map_err(|e| format!("Error leyendo libro con metadatos pendientes: {e}"))?);
     }
 
     Ok(books)
+}
+
+pub fn update_book_metadata(
+    conn: &Connection,
+    book_id: i64,
+    metadata: &crate::models::BookMetadata,
+) -> Result<(), String> {
+    conn.execute(
+        "UPDATE books
+         SET title = COALESCE(?1, title),
+             author = COALESCE(?2, author),
+             language = ?3,
+             description = ?4,
+             publisher = ?5,
+             published_date = ?6,
+             metadata_status = 'ready',
+             updated_at = datetime('now')
+         WHERE id = ?7",
+        params![
+            metadata.title,
+            metadata.author,
+            metadata.language,
+            metadata.description,
+            metadata.publisher,
+            metadata.published_date,
+            book_id
+        ],
+    )
+    .map_err(|e| format!("Error actualizando metadatos: {e}"))?;
+
+    Ok(())
+}
+
+pub fn update_metadata_failed(conn: &Connection, book_id: i64) -> Result<(), String> {
+    conn.execute(
+        "UPDATE books
+         SET metadata_status = 'failed',
+             updated_at = datetime('now')
+         WHERE id = ?1",
+        params![book_id],
+    )
+    .map_err(|e| format!("Error marcando metadatos como failed: {e}"))?;
+
+    Ok(())
 }
 
 pub fn get_pending_covers(conn: &Connection) -> Result<Vec<PendingCover>, String> {
@@ -205,10 +245,7 @@ pub fn reset_epub_covers(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-pub fn count_child_books(
-    conn: &Connection,
-    parent_id: Option<i64>,
-) -> Result<i64, String> {
+pub fn count_child_books(conn: &Connection, parent_id: Option<i64>) -> Result<i64, String> {
     let count = match parent_id {
         Some(id) => conn.query_row(
             "SELECT COUNT(*)
@@ -246,7 +283,12 @@ pub fn get_child_books_page(
                 author,
                 format,
                 cover_status,
-                cover_cache_key
+                cover_cache_key,
+                language,
+                description,
+                publisher,
+                published_date,
+                metadata_status
              FROM books
              WHERE folder_id = ?1
                AND is_missing = 0
@@ -261,7 +303,12 @@ pub fn get_child_books_page(
                 author,
                 format,
                 cover_status,
-                cover_cache_key
+                cover_cache_key,
+                language,
+                description,
+                publisher,
+                published_date,
+                metadata_status
              FROM books
              WHERE folder_id IS NULL
                AND is_missing = 0
@@ -283,6 +330,11 @@ pub fn get_child_books_page(
             format: row.get(4)?,
             cover_status: row.get(5)?,
             cover_cache_key: row.get(6)?,
+            language: row.get(7)?,
+            description: row.get(8)?,
+            publisher: row.get(9)?,
+            published_date: row.get(10)?,
+            metadata_status: row.get(11)?,
         })
     };
 
@@ -302,7 +354,9 @@ pub fn get_child_books_page(
     Ok(books)
 }
 
-pub fn get_books_with_cover(conn: &Connection) -> Result<Vec<crate::models::BookCoverState>, String> {
+pub fn get_books_with_cover(
+    conn: &Connection,
+) -> Result<Vec<crate::models::BookCoverState>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT id, format, is_missing, cover_cache_key
@@ -435,11 +489,16 @@ pub fn search_books(
     Ok(books)
 }
 
-pub fn get_book_info_for_move(conn: &Connection, id: i64) -> Result<(String, String), String> {
+pub fn get_book_info_for_move(
+    conn: &Connection,
+    id: i64,
+) -> Result<(Option<i64>, String, String), String> {
     conn.query_row(
-        "SELECT relative_path, file_name FROM books WHERE id = ?1",
+        "SELECT folder_id, relative_path, file_name
+         FROM books
+         WHERE id = ?1",
         params![id],
-        |row| Ok((row.get(0)?, row.get(1)?)),
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )
     .map_err(|e| format!("Error obteniendo info de libro para mover: {e}"))
 }
@@ -463,4 +522,196 @@ pub fn update_book_location(
     .map_err(|e| format!("Error actualizando ubicación de libro: {e}"))?;
 
     Ok(())
+}
+
+pub fn get_visible_books(conn: &Connection) -> Result<Vec<BookRow>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT
+                id,
+                folder_id,
+                COALESCE(NULLIF(title, ''), file_name) AS title,
+                author,
+                format,
+                cover_status,
+                cover_cache_key,
+                language,
+                description,
+                publisher,
+                published_date,
+                metadata_status
+             FROM books
+             WHERE is_missing = 0
+             ORDER BY title COLLATE NOCASE",
+        )
+        .map_err(|e| format!("Error preparando consulta de libros: {e}"))?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(BookRow {
+                id: row.get(0)?,
+                folder_id: row.get(1)?,
+                title: row.get(2)?,
+                author: row.get(3)?,
+                format: row.get(4)?,
+                cover_status: row.get(5)?,
+                cover_cache_key: row.get(6)?,
+                language: row.get(7)?,
+                description: row.get(8)?,
+                publisher: row.get(9)?,
+                published_date: row.get(10)?,
+                metadata_status: row.get(11)?,
+            })
+        })
+        .map_err(|e| format!("Error consultando libros: {e}"))?;
+
+    let mut books = Vec::new();
+
+    for book in rows {
+        books.push(book.map_err(|e| format!("Error leyendo libro: {e}"))?);
+    }
+
+    Ok(books)
+}
+
+#[derive(Debug, Clone)]
+pub struct BookPropertiesRow {
+    pub id: i64,
+    pub folder_id: Option<i64>,
+    pub folder_name: Option<String>,
+    pub file_name: String,
+    pub relative_path: String,
+    pub format: String,
+    pub title: String,
+    pub author: Option<String>,
+    pub file_size: i64,
+    pub file_modified_at: Option<String>,
+    pub created_at: Option<String>,
+    pub language: Option<String>,
+    pub description: Option<String>,
+    pub publisher: Option<String>,
+    pub published_date: Option<String>,
+    pub cover_status: String,
+    pub cover_cache_key: Option<String>,
+    pub metadata_status: String,
+    pub is_missing: i64,
+}
+
+pub fn get_book_properties(
+    conn: &Connection,
+    id: i64,
+) -> Result<Option<BookPropertiesRow>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT
+                b.id,
+                b.folder_id,
+                f.name AS folder_name,
+                b.file_name,
+                b.relative_path,
+                b.format,
+                COALESCE(NULLIF(b.title, ''), b.file_name) AS title,
+                b.author,
+                b.file_size,
+                b.file_modified_at,
+                b.created_at,
+                b.language,
+                b.description,
+                b.publisher,
+                b.published_date,
+                b.cover_status,
+                b.cover_cache_key,
+                b.metadata_status,
+                b.is_missing
+             FROM books b
+             LEFT JOIN folders f ON b.folder_id = f.id
+             WHERE b.id = ?1",
+        )
+        .map_err(|e| format!("Error preparando consulta de propiedades: {e}"))?;
+
+    let mut rows = stmt
+        .query_map(params![id], |row| {
+            Ok(BookPropertiesRow {
+                id: row.get(0)?,
+                folder_id: row.get(1)?,
+                folder_name: row.get(2)?,
+                file_name: row.get(3)?,
+                relative_path: row.get(4)?,
+                format: row.get(5)?,
+                title: row.get(6)?,
+                author: row.get(7)?,
+                file_size: row.get(8)?,
+                file_modified_at: row.get(9)?,
+                created_at: row.get(10)?,
+                language: row.get(11)?,
+                description: row.get(12)?,
+                publisher: row.get(13)?,
+                published_date: row.get(14)?,
+                cover_status: row.get(15)?,
+                cover_cache_key: row.get(16)?,
+                metadata_status: row.get(17)?,
+                is_missing: row.get(18)?,
+            })
+        })
+        .map_err(|e| format!("Error consultando propiedades: {e}"))?;
+
+    match rows.next() {
+        Some(row) => row
+            .map(Some)
+            .map_err(|e| format!("Error leyendo propiedades: {e}")),
+        None => Ok(None),
+    }
+}
+
+pub fn update_book_file_name(
+    conn: &Connection,
+    id: i64,
+    new_file_name: &str,
+    new_relative_path: &str,
+) -> Result<(), String> {
+    conn.execute(
+        "UPDATE books
+         SET file_name = ?1,
+             relative_path = ?2,
+             updated_at = datetime('now')
+         WHERE id = ?3",
+        params![new_file_name, new_relative_path, id],
+    )
+    .map_err(|e| format!("Error actualizando nombre de archivo: {e}"))?;
+
+    Ok(())
+}
+
+pub fn file_name_exists_in_folder(
+    conn: &Connection,
+    folder_id: Option<i64>,
+    file_name: &str,
+    exclude_id: i64,
+) -> Result<bool, String> {
+    let count = match folder_id {
+        Some(pid) => conn.query_row(
+            "SELECT COUNT(*)
+             FROM books
+             WHERE folder_id = ?1
+               AND file_name = ?2 COLLATE NOCASE
+               AND id != ?3
+               AND is_missing = 0",
+            params![pid, file_name, exclude_id],
+            |row| row.get(0),
+        ),
+        None => conn.query_row(
+            "SELECT COUNT(*)
+             FROM books
+             WHERE folder_id IS NULL
+               AND file_name = ?1 COLLATE NOCASE
+               AND id != ?2
+               AND is_missing = 0",
+            params![file_name, exclude_id],
+            |row| row.get(0),
+        ),
+    };
+
+    count
+        .map(|c: i64| c > 0)
+        .map_err(|e| format!("Error verificando nombre de archivo: {e}"))
 }

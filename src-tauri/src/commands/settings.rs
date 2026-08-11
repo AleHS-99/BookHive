@@ -7,10 +7,9 @@ use tauri::{AppHandle, State};
 
 #[tauri::command]
 pub fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
-    let conn = db
-        .0
-        .lock()
-        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+    let conn =
+        db.0.lock()
+            .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
 
     let library_path = settings_repository::get_library_path(&conn)?;
 
@@ -19,10 +18,9 @@ pub fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
 
 #[tauri::command]
 pub fn get_library_status(db: State<'_, Db>) -> Result<LibraryStatus, String> {
-    let conn = db
-        .0
-        .lock()
-        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+    let conn =
+        db.0.lock()
+            .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
 
     let library_path = settings_repository::get_library_path(&conn)?;
 
@@ -56,10 +54,7 @@ pub fn get_library_status(db: State<'_, Db>) -> Result<LibraryStatus, String> {
 }
 
 #[tauri::command]
-pub fn save_library_path(
-    db: State<'_, Db>,
-    path: String,
-) -> Result<AppSettings, String> {
+pub fn save_library_path(db: State<'_, Db>, path: String) -> Result<AppSettings, String> {
     let path_buf = library_service::normalize_path(&path);
 
     library_service::validate_empty_folder(&path_buf)?;
@@ -71,10 +66,9 @@ pub fn save_library_path(
     let path_string = path_buf.to_string_lossy().to_string();
 
     {
-        let conn = db
-            .0
-            .lock()
-            .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+        let conn =
+            db.0.lock()
+                .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
 
         settings_repository::set_library_path(&conn, &path_string)?;
     }

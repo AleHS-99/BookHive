@@ -3,7 +3,7 @@ use crate::repositories::{book_repository, folder_repository, settings_repositor
 use rusqlite::Connection;
 use std::fs;
 use std::path::Path;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 pub fn get_picker_page(
     conn: &Connection,
@@ -42,10 +42,7 @@ pub fn get_picker_page(
 
 fn is_valid_folder_name(name: &str) -> bool {
     let forbidden = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
-    !name.is_empty()
-        && !name.chars().any(|c| forbidden.contains(&c))
-        && name != "."
-        && name != ".."
+    !name.is_empty() && !name.chars().any(|c| forbidden.contains(&c)) && name != "." && name != ".."
 }
 
 pub fn create_folder(
@@ -53,7 +50,7 @@ pub fn create_folder(
     conn: &Connection,
     parent_id: Option<i64>,
     name: &str,
-) -> Result<(), String> {
+) -> Result<i64, String> {
     let name = name.trim();
 
     if !is_valid_folder_name(name) {
@@ -91,7 +88,9 @@ pub fn create_folder(
 
     folder_repository::insert_folder(conn, parent_id, name, &new_relative_path)?;
 
-    Ok(())
+    let folder_id = folder_repository::insert_folder(conn, parent_id, name, &new_relative_path)?;
+
+    Ok(folder_id)
 }
 
 pub fn move_book(
@@ -105,8 +104,15 @@ pub fn move_book(
 
     let root = Path::new(&library_path);
 
-    let (current_relative_path, file_name) =
+    // IMPORTANTE: Ahora devuelve 3 valores:
+    // (folder_id, relative_path, file_name)
+    let (current_folder_id, current_relative_path, file_name) =
         book_repository::get_book_info_for_move(conn, book_id)?;
+
+    // Si el libro ya está en la carpeta destino, no hacemos nada.
+    if current_folder_id == target_folder_id {
+        return Ok(());
+    }
 
     let target_relative_path = match target_folder_id {
         Some(id) => folder_repository::get_folder_relative_path(conn, id)?,

@@ -28,8 +28,8 @@ pub fn clear_covers_dir(dir: &Path) -> Result<(), String> {
         return Ok(());
     }
 
-    let entries = fs::read_dir(dir)
-        .map_err(|e| format!("No se pudo leer la carpeta de covers: {e}"))?;
+    let entries =
+        fs::read_dir(dir).map_err(|e| format!("No se pudo leer la carpeta de covers: {e}"))?;
 
     for entry in entries {
         let entry = match entry {
@@ -63,8 +63,7 @@ pub fn generate_epub_cover(
         .to_str()
         .ok_or_else(|| "Ruta EPUB no válida.".to_string())?;
 
-    let mut doc = EpubDoc::new(book_path_str)
-        .map_err(|e| format!("Error abriendo EPUB: {e:?}"))?;
+    let mut doc = EpubDoc::new(book_path_str).map_err(|e| format!("Error abriendo EPUB: {e:?}"))?;
 
     let cover_id = doc
         .get_cover_id()
@@ -94,10 +93,7 @@ pub fn generate_epub_cover(
     Ok(file_name)
 }
 
-pub fn cleanup_covers(
-    conn: &rusqlite::Connection,
-    covers_dir: &Path,
-) -> Result<u32, String> {
+pub fn cleanup_covers(conn: &rusqlite::Connection, covers_dir: &Path) -> Result<u32, String> {
     use std::collections::HashSet;
 
     let mut deleted = 0u32;

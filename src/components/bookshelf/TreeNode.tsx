@@ -14,6 +14,8 @@ interface TreeNodeProps {
   level?: number;
   onLoadChildren: (folderId: string, page: number) => void;
   folderPagination: Record<string, FolderPaginationState>;
+  onMoveBook?: (book: Book) => void;
+  onViewProperties?: (book: Book) => void;
 }
 
 export const TreeNode = ({
@@ -21,13 +23,24 @@ export const TreeNode = ({
   level = 0,
   onLoadChildren,
   folderPagination,
+  onMoveBook,
+  onViewProperties,
 }: TreeNodeProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Si es un libro
   if ('title' in node) {
-    return <BookItem book={node} level={level} />;
+    return (
+      <BookItem
+        book={node}
+        level={level}
+        onMoveBook={onMoveBook}
+        onViewProperties={onViewProperties}
+      />
+    );
   }
 
+  // Si es una carpeta
   const folder = node;
   const pagination = folderPagination[folder.id];
   const hasChildren = folder.count > 0;
@@ -94,7 +107,7 @@ export const TreeNode = ({
         </div>
       </div>
 
-      {/* Children */}
+      {/* Loading children */}
       {isExpanded && folder.children.length === 0 && pagination?.loading && (
         <div
           className={clsx(
@@ -106,6 +119,7 @@ export const TreeNode = ({
         </div>
       )}
 
+      {/* Children */}
       {isExpanded &&
         folder.children.map((child) => (
           <TreeNode
@@ -114,6 +128,8 @@ export const TreeNode = ({
             level={level + 1}
             onLoadChildren={onLoadChildren}
             folderPagination={folderPagination}
+            onMoveBook={onMoveBook}
+            onViewProperties={onViewProperties}
           />
         ))}
 

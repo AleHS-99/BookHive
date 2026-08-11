@@ -88,6 +88,16 @@ export const useBookshelf = () => {
     }
   }, []);
 
+  const processMetadata = useCallback(async () => {
+    if (!isTauri()) return;
+
+    try {
+      await BookshelfService.processPendingMetadata();
+    } catch (err) {
+      console.error('Error procesando metadatos:', err);
+    }
+  }, []);
+
   const loadRootPage = useCallback(
     async (pageIndex: number, reset = false) => {
       if (reset) {
@@ -117,6 +127,7 @@ export const useBookshelf = () => {
 
         if (reset) {
           void processCovers();
+          void processMetadata();
         }
       } catch (err) {
         console.error(err);
@@ -203,16 +214,15 @@ export const useBookshelf = () => {
 
     let unlisten: (() => void) | null = null;
 
-    listen<CoverUpdatedPayload>('book-cover-updated', (event) => {
-      const { bookId, imageUrl } = event.payload;
-
-      setItems((prev) => updateBookInNodes(prev, bookId, imageUrl));
+    listen('book-metadata-updated', () => {
+      // Recargar la página actual para mostrar metadatos actualizados
+      loadRootPage(page, true);
     })
       .then((unlistenFn) => {
         unlisten = unlistenFn;
       })
       .catch((err) => {
-        console.error('Error escuchando book-cover-updated:', err);
+        console.error('Error escuchando book-metadata-updated:', err);
       });
 
     return () => {
@@ -220,7 +230,7 @@ export const useBookshelf = () => {
         unlisten();
       }
     };
-  }, []);
+  }, [page, loadRootPage]);
 
   return {
     items,

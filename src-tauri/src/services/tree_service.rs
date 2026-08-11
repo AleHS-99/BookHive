@@ -1,15 +1,10 @@
-use crate::models::{
-    BookDto, BookRow, FolderDto, FolderRow, TreeNodeDto,
-};
+use crate::models::{BookDto, BookRow, FolderDto, FolderRow, TreeNodeDto};
 use crate::repositories::{book_repository, folder_repository};
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::path::Path;
 
-pub fn build_root_tree(
-    conn: &Connection,
-    covers_dir: &Path,
-) -> Result<FolderDto, String> {
+pub fn build_root_tree(conn: &Connection, covers_dir: &Path) -> Result<FolderDto, String> {
     let folders = folder_repository::get_all_folders(conn)?;
     let books = book_repository::get_visible_books(conn)?;
 
@@ -137,11 +132,9 @@ pub fn get_folder_page(
 ) -> Result<crate::models::PaginatedTreePage, String> {
     let page_size = page_size.clamp(1, 100);
 
-    let folder_count =
-        folder_repository::count_child_folders(conn, parent_id)? as u32;
+    let folder_count = folder_repository::count_child_folders(conn, parent_id)? as u32;
 
-    let book_count =
-        book_repository::count_child_books(conn, parent_id)? as u32;
+    let book_count = book_repository::count_child_books(conn, parent_id)? as u32;
 
     let total = folder_count + book_count;
     let offset = page * page_size;
@@ -155,12 +148,8 @@ pub fn get_folder_page(
         if offset < folder_count {
             let limit = std::cmp::min(remaining, folder_count - offset);
 
-            let folders = folder_repository::get_child_folders_page(
-                conn,
-                parent_id,
-                limit,
-                offset,
-            )?;
+            let folders =
+                folder_repository::get_child_folders_page(conn, parent_id, limit, offset)?;
 
             for folder in folders {
                 items.push(TreeNodeDto::Folder(FolderDto {
@@ -183,12 +172,8 @@ pub fn get_folder_page(
                 0
             };
 
-            let books = book_repository::get_child_books_page(
-                conn,
-                parent_id,
-                remaining,
-                book_offset,
-            )?;
+            let books =
+                book_repository::get_child_books_page(conn, parent_id, remaining, book_offset)?;
 
             for book in books {
                 let image_url = resolve_cover_url(&book, covers_dir);

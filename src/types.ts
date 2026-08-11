@@ -61,3 +61,38 @@ export type SearchPage = {
   pageSize: number;
   hasMore: boolean;
 };
+
+export type FolderPickerItem = {
+  id: string;
+  name: string;
+  hasChildren: boolean;
+};
+
+export type FolderPickerPage = {
+  items: FolderPickerItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+};
+
+export type BookProperties = {
+  id: string;
+  title: string;
+  author: string;
+  format: string;
+  imageUrl?: string;
+  fileName: string;
+  relativePath: string;
+  folderName?: string | null;
+  fileSize: number;
+  fileModifiedAt?: string | null;
+  createdAt?: string | null;
+  language?: string | null;
+  description?: string | null;
+  publisher?: string | null;
+  publishedDate?: string | null;
+  coverStatus: string;
+  metadataStatus: string;
+  isMissing: boolean;
+};

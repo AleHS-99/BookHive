@@ -19,7 +19,10 @@ pub fn get_setting(conn: &Connection, key: &str) -> Result<Option<String>, Strin
         .query(params![key])
         .map_err(|e| format!("Error consultando settings: {e}"))?;
 
-    match rows.next().map_err(|e| format!("Error leyendo settings: {e}"))? {
+    match rows
+        .next()
+        .map_err(|e| format!("Error leyendo settings: {e}"))?
+    {
         Some(row) => {
             let value: String = row
                 .get(0)

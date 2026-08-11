@@ -25,12 +25,11 @@ pub fn validate_folder(path: &Path) -> Result<(), String> {
 pub fn is_dir_empty(path: &Path) -> Result<bool, String> {
     validate_folder(path)?;
 
-    let entries = fs::read_dir(path)
-        .map_err(|e| format!("No se pudo leer la carpeta seleccionada: {e}"))?;
+    let entries =
+        fs::read_dir(path).map_err(|e| format!("No se pudo leer la carpeta seleccionada: {e}"))?;
 
     for entry in entries {
-        let entry = entry
-            .map_err(|e| format!("Error leyendo entrada de carpeta: {e}"))?;
+        let entry = entry.map_err(|e| format!("Error leyendo entrada de carpeta: {e}"))?;
 
         let file_name = entry.file_name();
         let file_name = file_name.to_string_lossy();

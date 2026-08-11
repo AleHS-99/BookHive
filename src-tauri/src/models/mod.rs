@@ -1,7 +1,7 @@
 pub mod library;
-pub mod tree;
 pub mod search;
+pub mod tree;
 
 pub use library::*;
-pub use tree::*;
 pub use search::*;
+pub use tree::*;

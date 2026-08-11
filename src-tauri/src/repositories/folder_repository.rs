@@ -16,7 +16,10 @@ pub fn upsert_folder(
         .query(params![relative_path])
         .map_err(|e| format!("Error consultando carpeta: {e}"))?;
 
-    if let Some(row) = rows.next().map_err(|e| format!("Error leyendo carpeta: {e}"))? {
+    if let Some(row) = rows
+        .next()
+        .map_err(|e| format!("Error leyendo carpeta: {e}"))?
+    {
         let id: i64 = row
             .get(0)
             .map_err(|e| format!("Error leyendo id de carpeta: {e}"))?;
@@ -94,10 +97,7 @@ pub fn get_all_folders(conn: &Connection) -> Result<Vec<FolderRow>, String> {
     Ok(folders)
 }
 
-pub fn count_child_folders(
-    conn: &Connection,
-    parent_id: Option<i64>,
-) -> Result<i64, String> {
+pub fn count_child_folders(conn: &Connection, parent_id: Option<i64>) -> Result<i64, String> {
     let count = match parent_id {
         Some(id) => conn.query_row(
             "SELECT COUNT(*) FROM folders WHERE parent_id = ?1",

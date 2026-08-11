@@ -1,8 +1,17 @@
 import { MoreVertical, FileText, BookOpen, Folder } from 'lucide-react';
-import { SearchBook } from '../../types';
+import { Book, SearchBook } from '../../types';
 import { getCoverSrc } from '../../utils/cover';
+import { ContextMenu } from '../ui/ContextMenu';
 
-export const SearchResultItem = ({ book }: { book: SearchBook }) => {
+export const SearchResultItem = ({
+  book,
+  onMoveBook,
+  onViewProperties,
+}: {
+  book: SearchBook;
+  onMoveBook?: (book: Book) => void;
+  onViewProperties?: (book: Book) => void;
+}) => {
   const coverSrc = getCoverSrc(book.imageUrl);
 
   return (
@@ -42,10 +51,19 @@ export const SearchResultItem = ({ book }: { book: SearchBook }) => {
         )}
       </div>
 
-      {/* Actions */}
-      <button className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200">
-        <MoreVertical className="w-4 h-4" />
-      </button>
+      <ContextMenu
+        trigger={<MoreVertical className="w-4 h-4" />}
+        items={[
+          {
+            label: 'Mover a carpeta',
+            onClick: () => onMoveBook?.(book as Book),
+          },
+          {
+            label: 'Propiedades',
+            onClick: () => onViewProperties?.(book as Book),
+          },
+        ]}
+      />
     </div>
   );
 };

@@ -22,14 +22,10 @@ pub fn validate_empty_library_folder(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn sync_library(
-    db: State<'_, Db>,
-    app: AppHandle,
-) -> Result<SyncSummary, String> {
-    let mut conn = db
-        .0
-        .lock()
-        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+pub fn sync_library(db: State<'_, Db>, app: AppHandle) -> Result<SyncSummary, String> {
+    let mut conn =
+        db.0.lock()
+            .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
 
     let library_path = settings_repository::get_library_path(&conn)?
         .ok_or_else(|| "No hay carpeta de biblioteca configurada.".to_string())?;
@@ -54,14 +50,10 @@ pub fn sync_library(
 }
 
 #[tauri::command]
-pub fn get_library_tree(
-    db: State<'_, Db>,
-    app: AppHandle,
-) -> Result<FolderDto, String> {
-    let conn = db
-        .0
-        .lock()
-        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+pub fn get_library_tree(db: State<'_, Db>, app: AppHandle) -> Result<FolderDto, String> {
+    let conn =
+        db.0.lock()
+            .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
 
     let _library_path = settings_repository::get_library_path(&conn)?
         .ok_or_else(|| "No hay carpeta de biblioteca configurada.".to_string())?;
@@ -72,22 +64,17 @@ pub fn get_library_tree(
 }
 
 #[tauri::command]
-pub async fn process_pending_covers(
-    app: AppHandle,
-    db: State<'_, Db>,
-) -> Result<u32, String> {
+pub async fn process_pending_covers(app: AppHandle, db: State<'_, Db>) -> Result<u32, String> {
     let db = db.inner().clone();
     let covers_dir = cover_service::covers_dir(&app)?;
 
     tauri::async_runtime::spawn_blocking(move || {
         let should_reset_covers = {
-            let conn = db
-                .0
-                .lock()
-                .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+            let conn =
+                db.0.lock()
+                    .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
 
-            let current_version =
-                settings_repository::get_setting(&conn, "cover_version")?;
+            let current_version = settings_repository::get_setting(&conn, "cover_version")?;
 
             current_version.as_deref() != Some(cover_service::COVER_CACHE_VERSION)
         };
@@ -95,10 +82,9 @@ pub async fn process_pending_covers(
         if should_reset_covers {
             cover_service::clear_covers_dir(&covers_dir)?;
 
-            let conn = db
-                .0
-                .lock()
-                .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+            let conn =
+                db.0.lock()
+                    .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
 
             book_repository::reset_epub_covers(&conn)?;
 
@@ -110,10 +96,9 @@ pub async fn process_pending_covers(
         }
 
         let library_path = {
-            let conn = db
-                .0
-                .lock()
-                .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+            let conn =
+                db.0.lock()
+                    .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
 
             settings_repository::get_library_path(&conn)?
                 .ok_or_else(|| "No hay carpeta de biblioteca configurada.".to_string())?
@@ -122,10 +107,9 @@ pub async fn process_pending_covers(
         let root = PathBuf::from(library_path);
 
         let pending = {
-            let conn = db
-                .0
-                .lock()
-                .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+            let conn =
+                db.0.lock()
+                    .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
 
             book_repository::get_pending_covers(&conn)?
         };
@@ -144,10 +128,9 @@ pub async fn process_pending_covers(
                 item.id,
             );
 
-            let conn = db
-                .0
-                .lock()
-                .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+            let conn =
+                db.0.lock()
+                    .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
 
             match result {
                 Ok(file_name) => {
@@ -185,10 +168,9 @@ pub fn get_folder_page(
     page: u32,
     page_size: u32,
 ) -> Result<crate::models::PaginatedTreePage, String> {
-    let conn = db
-        .0
-        .lock()
-        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+    let conn =
+        db.0.lock()
+            .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
 
     let _library_path = settings_repository::get_library_path(&conn)?
         .ok_or_else(|| "No hay carpeta de biblioteca configurada.".to_string())?;
@@ -206,21 +188,110 @@ pub fn search_books(
     page: u32,
     page_size: u32,
 ) -> Result<crate::models::SearchPage, String> {
-    let conn = db
-        .0
-        .lock()
-        .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+    let conn =
+        db.0.lock()
+            .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
 
     let _library_path = settings_repository::get_library_path(&conn)?
         .ok_or_else(|| "No hay carpeta de biblioteca configurada.".to_string())?;
 
     let covers_dir = cover_service::covers_dir(&app)?;
 
-    crate::services::search_service::search_books(
-        &conn,
-        &covers_dir,
-        &query,
-        page,
-        page_size,
-    )
+    crate::services::search_service::search_books(&conn, &covers_dir, &query, page, page_size)
+}
+
+#[tauri::command]
+pub async fn process_pending_metadata(app: AppHandle, db: State<'_, Db>) -> Result<u32, String> {
+    let db = db.inner().clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let library_path = {
+            let conn =
+                db.0.lock()
+                    .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+
+            settings_repository::get_library_path(&conn)?
+                .ok_or_else(|| "No hay carpeta de biblioteca configurada.".to_string())?
+        };
+
+        let root = PathBuf::from(library_path);
+
+        let pending = {
+            let conn =
+                db.0.lock()
+                    .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+
+            book_repository::get_books_pending_metadata(&conn)?
+        };
+
+        let mut processed = 0u32;
+
+        for item in pending {
+            if item.format != "epub" {
+                continue;
+            }
+
+            let book_path = root.join(&item.relative_path);
+
+            let result = crate::services::metadata_service::extract_epub_metadata(&book_path);
+
+            let conn =
+                db.0.lock()
+                    .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+
+            match result {
+                Ok(metadata) => {
+                    book_repository::update_book_metadata(&conn, item.id, &metadata)?;
+
+                    drop(conn);
+
+                    let _ = app.emit(
+                        "book-metadata-updated",
+                        serde_json::json!({
+                            "bookId": format!("book:{}", item.id),
+                        }),
+                    );
+
+                    processed += 1;
+                }
+                Err(_) => {
+                    book_repository::update_metadata_failed(&conn, item.id)?;
+                }
+            }
+        }
+
+        Ok(processed)
+    })
+    .await
+    .map_err(|e| format!("Error en la tarea de metadatos: {e}"))?
+}
+
+#[tauri::command]
+pub fn get_book_properties(
+    db: State<'_, Db>,
+    app: AppHandle,
+    book_id: i64,
+) -> Result<crate::models::BookPropertiesDto, String> {
+    let conn =
+        db.0.lock()
+            .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+
+    let _library_path = settings_repository::get_library_path(&conn)?
+        .ok_or_else(|| "No hay carpeta de biblioteca configurada.".to_string())?;
+
+    crate::services::book_service::get_book_properties(&app, &conn, book_id)
+}
+
+#[tauri::command]
+pub fn rename_book_file(
+    db: State<'_, Db>,
+    app: AppHandle,
+    book_id: i64,
+    new_name: String,
+) -> Result<(), String> {
+    let conn =
+        db.0.lock()
+            .map_err(|e| format!("Error bloqueando la base de datos: {e}"))?;
+
+    crate::services::book_service::rename_book_file(&app, &conn, book_id, &new_name)
 }

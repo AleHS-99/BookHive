@@ -96,3 +96,27 @@ export type BookProperties = {
   metadataStatus: string;
   isMissing: boolean;
 };
+
+export type DiscoverBook = {
+  id: string;
+  title: string;
+  author?: string;
+  coverUrl?: string;
+  url: string;
+};
+
+export type DiscoverCategory = {
+  name: string;
+  path: string;
+};
+
+export type DiscoverPage<T> = {
+  items: T[];
+  page: number;
+  hasMore: boolean;
+};
+
+export type DiscoverHome = {
+  novelties: DiscoverBook[];
+  mostRead: DiscoverBook[];
+};

@@ -6,3 +6,4 @@ pub mod metadata_service;
 pub mod search_service;
 pub mod sync_service;
 pub mod tree_service;
+pub mod lectulandia;

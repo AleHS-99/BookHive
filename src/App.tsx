@@ -2,6 +2,7 @@ import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './layouts/AppLayout';
 import { BookshelfPage } from './pages/BookshelfPage';
+import { LectulandiaPage } from './pages/LectulandiaPage';
 
 function App() {
   return (
@@ -17,6 +18,8 @@ function App() {
           <Route path="/quotes" element={<div className="p-8">Quotes</div>} />
           <Route path="/stats" element={<div className="p-8">Stats</div>} />
           <Route path="/settings" element={<div className="p-8">Settings</div>} />
+          {/* Descubrir */}
+          <Route path="/discover/lectulandia" element={<LectulandiaPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

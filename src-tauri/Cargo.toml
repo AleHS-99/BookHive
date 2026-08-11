@@ -29,4 +29,9 @@ walkdir = "2.5.0"
 epub = "2.1.5"
 image = { version = "0.25.10", features = ["webp"] }
 webp = "0.3.1"
+reqwest = {version = "0.13.4", default-features = false, features = ["rustls", "cookies", "stream", "gzip"] }
+scraper = "0.27.0"
+urlencoding = "2.1.3"
+futures-util = "0.3.34"
+tokio = { version = "1.53.1", features = ["fs", "io-util", "macros"] }
 

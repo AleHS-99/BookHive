@@ -97,9 +97,15 @@ pub fn run() {
             commands::folder::rename_folder,
             commands::folder::delete_folder,
             commands::folder::get_folder_summary,
-            commands::folder::delete_folder,  // Actualizar el existente
+            commands::folder::delete_folder,
             commands::library::delete_book,
             commands::library::import_books,
+            commands::lectulandia::discover_home,
+            commands::lectulandia::discover_categories,
+            commands::lectulandia::discover_search,
+            commands::lectulandia::discover_category_books,
+            commands::lectulandia::discover_book_detail,
+            commands::lectulandia::discover_download_book,
         ])
         .run(tauri::generate_context!())
         .expect("error while running BookHive");

@@ -114,9 +114,13 @@ jobs:
           releaseDraft: true
           prerelease: false
 
-  # ============ ANDROID (CORREGIDO) ============
+    # ============ ANDROID (RELEASE & OPTIMIZADO) ============
   build-android:
-    name: Build Android (APK)
+    name: Build Android (APKs Release)
+    # Solo ejecuta si es manual (workflow_dispatch) o si se crea un Tag (v*)
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout código
@@ -137,18 +141,20 @@ jobs:
         with:
           version: 11.17.0
 
-      - name: Instalar Java (JDK 17)
-        uses: actions/setup-java@v3
+      # 🔥 JDK 21.0.3 (Actualizado de 17 a 21)
+      - name: Instalar Java (JDK 21.0.3)
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21.0.3'
 
+      # 🔥 Android SDK 34 y Build Tools 34
       - name: Instalar Android SDK y NDK
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: latest
+          packages: 'platforms;android-34 build-tools;34.0.0'
 
-      # Instalar herramientas adicionales
       - name: Instalar herramientas adicionales
         run: sudo apt-get install -y cmake ninja-build
 
@@ -160,7 +166,6 @@ jobs:
       - name: Instalar dependencias del frontend
         run: pnpm install
 
-      # Inicializar proyecto Android si no existe
       - name: Inicializar Tauri Android
         run: |
           if [ ! -d "src-tauri/gen/android" ]; then
@@ -169,68 +174,70 @@ jobs:
             echo "✅ Proyecto Android ya inicializado"
           fi
 
-      # 🔥 GENERAR APK DEBUG (para instalar directamente)
-      - name: Build APK Debug (firmado automáticamente)
-        run: pnpm tauri android build --apk --debug
+      # 🔥 Inyectar configuraciones: minSdk 26, SDK 34 y Gradle 8.14.3
+      - name: Configurar minSdk 26, SDK 34 y Gradle 8.14.3
+        run: |
+          GRADLE_FILE="src-tauri/gen/android/app/build.gradle.kts"
+          WRAPPER_FILE="src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties"
+          
+          # Forzar minSdk a 26
+          sed -i 's/minSdk = [0-9]*/minSdk = 26/g' $GRADLE_FILE
+          
+          # Forzar compileSdk y targetSdk a 34
+          sed -i 's/compileSdk = [0-9]*/compileSdk = 34/g' $GRADLE_FILE
+          sed -i 's/targetSdk = [0-9]*/targetSdk = 34/g' $GRADLE_FILE
+          
+          # Forzar Gradle 8.14.3 en el wrapper
+          if [ -f "$WRAPPER_FILE" ]; then
+            sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.14.3-bin.zip|g' $WRAPPER_FILE
+          fi
+          
+          echo "✅ Configuración de Android aplicada (minSdk: 26, SDK: 34, Gradle: 8.14.3)"
+
+      # 🔥 GENERAR APKs EN MODO RELEASE (Separados por arquitectura)
+      - name: Build APKs Release (Optimizados y separados)
+        run: pnpm tauri android build --apk --split-per-abi
         continue-on-error: true
 
-      # Si falla debug, intentar con gradle directamente
-      - name: Si falla, build con Gradle (debug)
+      # Si falla Tauri, intentar con Gradle directamente
+      - name: Si falla, build con Gradle (release)
         if: failure()
         run: |
           cd src-tauri/gen/android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
-      # 🔥 Buscar APK debug
-      - name: Buscar APK Debug
-        id: find_debug_apk
+      # 🔥 Buscar los APKs generados
+      - name: Buscar APKs Release
+        id: find_apks
         run: |
-          DEBUG_APK=$(find src-tauri/gen/android -name "*debug*.apk" 2>/dev/null | head -1)
+          # Buscamos todos los .apk generados en modo release (split-per-abi genera varios)
+          APK_FILES=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
           
-          if [ -n "$DEBUG_APK" ]; then
-            echo "✅ APK Debug encontrado: $DEBUG_APK"
-            echo "apk_found=true" >> $GITHUB_OUTPUT
-            echo "apk_path=$DEBUG_APK" >> $GITHUB_OUTPUT
+          if [ -n "$APK_FILES" ]; then
+            echo "✅ APKs encontrados: $APK_FILES"
+            echo "apks=$APK_FILES" >> $GITHUB_OUTPUT
+            echo "found=true" >> $GITHUB_OUTPUT
           else
-            echo "❌ No se encontró APK Debug"
-            echo "apk_found=false" >> $GITHUB_OUTPUT
-            
-            # Buscar cualquier APK
-            ANY_APK=$(find src-tauri/gen/android -name "*.apk" 2>/dev/null | head -1)
-            if [ -n "$ANY_APK" ]; then
-              echo "ℹ️ Pero se encontró APK release: $ANY_APK"
-              echo "release_apk_found=true" >> $GITHUB_OUTPUT
-              echo "release_apk_path=$ANY_APK" >> $GITHUB_OUTPUT
-            fi
+            echo "❌ No se encontraron APKs"
+            echo "found=false" >> $GITHUB_OUTPUT
           fi
 
-      # Subir APK Debug si existe
-      - name: Subir APK Debug
-        if: steps.find_debug_apk.outputs.apk_found == 'true'
-        uses: actions/upload-artifact@v4
+      # 🔥 Subir TODOS los APKs al Release de GitHub
+      - name: Subir APKs al Release de GitHub
+        if: steps.find_apks.outputs.found == 'true'
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: bookhive-android-debug
-          path: ${{ steps.find_debug_apk.outputs.apk_path }}
-          if-no-files-found: ignore
+          # Sube los 4 APKs (arm64-v8a, armeabi-v7a, x86, x86_64) al mismo Release
+          files: ${{ steps.find_apks.outputs.apks }}
 
-      # Subir APK Release (unsigned) como alternativa
-      - name: Subir APK Release (unsigned)
-        if: steps.find_debug_apk.outputs.release_apk_found == 'true'
+      # Opcional: Subir también como Artifacts (útil para descargar rápido desde la UI de Actions sin ir al Release)
+      - name: Subir APKs a Artifacts de GitHub
+        if: steps.find_apks.outputs.found == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: bookhive-android-release-unsigned
-          path: ${{ steps.find_debug_apk.outputs.release_apk_path }}
-          if-no-files-found: ignore
-
-      # Subir logs si todo falla
-      - name: Subir logs de build si todo falló
-        if: steps.find_debug_apk.outputs.apk_found == 'false' && steps.find_debug_apk.outputs.release_apk_found == 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-build-logs
-          path: |
-            src-tauri/gen/android/*/build/outputs/**/*.txt
-            src-tauri/gen/android/*/build/outputs/**/*.log
-            src-tauri/gen/android/*/build/reports/**/*.html
+          name: bookhive-android-release-apks
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: ignore

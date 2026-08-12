@@ -163,15 +163,17 @@ jobs:
           echo "=== Configurando keystore ==="
           
           echo "1. Decodificando keystore desde base64..."
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > src-tauri/gen/android/app/bookhive.keystore
+          # La keystore va en la RAÍZ del proyecto Android (no en app/)
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > src-tauri/gen/android/bookhive.keystore
           
           echo "2. Verificando que el archivo se creó..."
-          if [ ! -f "src-tauri/gen/android/app/bookhive.keystore" ]; then
+          if [ ! -f "src-tauri/gen/android/bookhive.keystore" ]; then
             echo "❌ ERROR: El archivo bookhive.keystore no se creó"
+            ls -la src-tauri/gen/android/
             exit 1
           fi
           
-          FILE_SIZE=$(stat -c%s "src-tauri/gen/android/app/bookhive.keystore")
+          FILE_SIZE=$(stat -c%s "src-tauri/gen/android/bookhive.keystore")
           echo "✅ Archivo creado: $FILE_SIZE bytes"
           
           if [ "$FILE_SIZE" -lt 100 ]; then
@@ -180,35 +182,26 @@ jobs:
           fi
           
           echo "3. Creando keystore.properties..."
+          # keystore.properties va en la raíz del proyecto Android
           cat > src-tauri/gen/android/keystore.properties << EOF
           keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          storeFile=app/bookhive.keystore
+          storeFile=bookhive.keystore
           storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
           EOF
-          
-          echo "4. Verificando keystore.properties..."
-          if [ ! -f "src-tauri/gen/android/keystore.properties" ]; then
-            echo "❌ ERROR: keystore.properties no se creó"
-            exit 1
-          fi
-          
-          echo "Contenido de keystore.properties (sin passwords):"
-          grep -E "^(keyAlias|storeFile)=" src-tauri/gen/android/keystore.properties
-          
-          echo "5. Verificando keystore con keytool..."
-          keytool -list -keystore src-tauri/gen/android/app/bookhive.keystore \
-            -storepass "${{ secrets.ANDROID_STORE_PASSWORD }}" \
-            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" || {
-              echo "❌ ERROR: keytool no pudo leer la keystore"
-              echo "Posibles causas:"
-              echo "  - La contraseña del store es incorrecta"
-              echo "  - El alias es incorrecto"
-              echo "  - El archivo no es una keystore válida"
-              exit 1
-            }
-          
-          echo "✅ Keystore configurada correctamente"
+              
+              echo "4. Verificando keystore.properties..."
+              cat src-tauri/gen/android/keystore.properties
+              
+              echo "5. Verificando keystore con keytool..."
+              keytool -list -keystore src-tauri/gen/android/bookhive.keystore \
+                -storepass "${{ secrets.ANDROID_STORE_PASSWORD }}" \
+                -alias "${{ secrets.ANDROID_KEY_ALIAS }}" || {
+                  echo "❌ ERROR: keytool no pudo leer la keystore"
+                  exit 1
+                }
+              
+              echo "✅ Keystore configurada correctamente"
 
       # ============================================
       # BUILD DE ANDROID

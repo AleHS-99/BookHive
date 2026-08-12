@@ -163,15 +163,15 @@ jobs:
           echo "=== Configurando keystore ==="
           
           echo "1. Decodificando keystore desde base64..."
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > src-tauri/gen/android/app/keystore.jks
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > src-tauri/gen/android/app/bookhive.keystore
           
           echo "2. Verificando que el archivo se creó..."
-          if [ ! -f "src-tauri/gen/android/app/keystore.jks" ]; then
-            echo "❌ ERROR: El archivo keystore.jks no se creó"
+          if [ ! -f "src-tauri/gen/android/app/bookhive.keystore" ]; then
+            echo "❌ ERROR: El archivo bookhive.keystore no se creó"
             exit 1
           fi
           
-          FILE_SIZE=$(stat -c%s "src-tauri/gen/android/app/keystore.jks")
+          FILE_SIZE=$(stat -c%s "src-tauri/gen/android/app/bookhive.keystore")
           echo "✅ Archivo creado: $FILE_SIZE bytes"
           
           if [ "$FILE_SIZE" -lt 100 ]; then
@@ -183,7 +183,7 @@ jobs:
           cat > src-tauri/gen/android/keystore.properties << EOF
           keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          storeFile=app/keystore.jks
+          storeFile=app/bookhive.keystore
           storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
           EOF
           
@@ -197,7 +197,7 @@ jobs:
           grep -E "^(keyAlias|storeFile)=" src-tauri/gen/android/keystore.properties
           
           echo "5. Verificando keystore con keytool..."
-          keytool -list -keystore src-tauri/gen/android/app/keystore.jks \
+          keytool -list -keystore src-tauri/gen/android/app/bookhive.keystore \
             -storepass "${{ secrets.ANDROID_STORE_PASSWORD }}" \
             -alias "${{ secrets.ANDROID_KEY_ALIAS }}" || {
               echo "❌ ERROR: keytool no pudo leer la keystore"

@@ -37,15 +37,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 11.17.0
+          run_install: false
 
       - name: Install frontend dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -70,7 +71,6 @@ jobs:
 
   build-android:
     runs-on: ubuntu-latest
-    needs: build-desktop
 
     steps:
       - name: Checkout repository
@@ -84,15 +84,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 11.17.0
+          run_install: false
 
       - name: Install frontend dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

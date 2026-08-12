@@ -5,7 +5,11 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("rust")
 }
-
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
 val tauriProperties = Properties().apply {
     val propFile = file("tauri.properties")
     if (propFile.exists()) {
@@ -24,6 +28,16 @@ android {
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
@@ -37,12 +51,18 @@ android {
             }
         }
         getByName("release") {
-            isMinifyEnabled = true
-            proguardFiles(
-                *fileTree(".") { include("**/*.pro") }
-                    .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
-                    .toList().toTypedArray()
-            )
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            isMinifyEnabled = false
+        }
+    }
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("x86", "x86_64", "armeabi-v7a", "arm64-v8a")
+            isUniversalApk = true
         }
     }
     kotlinOptions {

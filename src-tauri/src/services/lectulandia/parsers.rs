@@ -28,21 +28,6 @@ fn detect_format(label: &str, url: &str) -> String {
     }
 }
 
-/// Normaliza la etiqueta del enlace para mostrarla en el frontend.
-fn normalize_label(label: &str, format: &str) -> String {
-    let trimmed = label.trim();
-
-    if trimmed.is_empty() {
-        return match format {
-            "epub" => "EPUB".to_string(),
-            "pdf" => "PDF".to_string(),
-            _ => "Descargar".to_string(),
-        };
-    }
-
-    trimmed.to_string()
-}
-
 pub fn parse_books_page(html: &str) -> (Vec<DiscoverBookSummary>, bool) {
     let document = Html::parse_document(html);
 

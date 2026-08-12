@@ -124,14 +124,95 @@ jobs:
       - name: Set NDK_HOME
         run: echo "NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
 
-      # --- NUEVO: Configurar keystore desde secrets ---
+      # ============================================
+      # PASOS CRÍTICOS PARA LA KEYSTORE
+      # ============================================
+
+      - name: Verify keystore secrets exist
+        run: |
+          echo "Verificando secrets..."
+          
+          if [ -z "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "❌ ERROR: ANDROID_KEYSTORE_BASE64 no está configurado"
+            exit 1
+          fi
+          echo "✅ ANDROID_KEYSTORE_BASE64 existe ($(echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | wc -c) bytes)"
+          
+          if [ -z "${{ secrets.ANDROID_KEY_ALIAS }}" ]; then
+            echo "❌ ERROR: ANDROID_KEY_ALIAS no está configurado"
+            exit 1
+          fi
+          echo "✅ ANDROID_KEY_ALIAS = ${{ secrets.ANDROID_KEY_ALIAS }}"
+          
+          if [ -z "${{ secrets.ANDROID_KEY_PASSWORD }}" ]; then
+            echo "❌ ERROR: ANDROID_KEY_PASSWORD no está configurado"
+            exit 1
+          fi
+          echo "✅ ANDROID_KEY_PASSWORD existe"
+          
+          if [ -z "${{ secrets.ANDROID_STORE_PASSWORD }}" ]; then
+            echo "❌ ERROR: ANDROID_STORE_PASSWORD no está configurado"
+            exit 1
+          fi
+          echo "✅ ANDROID_STORE_PASSWORD existe"
+          
+          echo "Todos los secrets están configurados correctamente"
+
       - name: Decode and setup keystore
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > src-tauri/gen/android/bookhive.keystore
-          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" > src-tauri/gen/android/keystore.properties
-          echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
-          echo "storeFile=keystore.jks" >> src-tauri/gen/android/keystore.properties
-          echo "storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
+          echo "=== Configurando keystore ==="
+          
+          echo "1. Decodificando keystore desde base64..."
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > src-tauri/gen/android/app/keystore.jks
+          
+          echo "2. Verificando que el archivo se creó..."
+          if [ ! -f "src-tauri/gen/android/app/keystore.jks" ]; then
+            echo "❌ ERROR: El archivo keystore.jks no se creó"
+            exit 1
+          fi
+          
+          FILE_SIZE=$(stat -c%s "src-tauri/gen/android/app/keystore.jks")
+          echo "✅ Archivo creado: $FILE_SIZE bytes"
+          
+          if [ "$FILE_SIZE" -lt 100 ]; then
+            echo "❌ ERROR: El archivo es demasiado pequeño. El base64 está mal formado."
+            exit 1
+          fi
+          
+          echo "3. Creando keystore.properties..."
+          cat > src-tauri/gen/android/keystore.properties << EOF
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          storeFile=app/keystore.jks
+          storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
+          EOF
+          
+          echo "4. Verificando keystore.properties..."
+          if [ ! -f "src-tauri/gen/android/keystore.properties" ]; then
+            echo "❌ ERROR: keystore.properties no se creó"
+            exit 1
+          fi
+          
+          echo "Contenido de keystore.properties (sin passwords):"
+          grep -E "^(keyAlias|storeFile)=" src-tauri/gen/android/keystore.properties
+          
+          echo "5. Verificando keystore con keytool..."
+          keytool -list -keystore src-tauri/gen/android/app/keystore.jks \
+            -storepass "${{ secrets.ANDROID_STORE_PASSWORD }}" \
+            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" || {
+              echo "❌ ERROR: keytool no pudo leer la keystore"
+              echo "Posibles causas:"
+              echo "  - La contraseña del store es incorrecta"
+              echo "  - El alias es incorrecto"
+              echo "  - El archivo no es una keystore válida"
+              exit 1
+            }
+          
+          echo "✅ Keystore configurada correctamente"
+
+      # ============================================
+      # BUILD DE ANDROID
+      # ============================================
 
       - name: Build signed Android APKs
         run: pnpm tauri android build --apk

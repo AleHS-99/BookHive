@@ -1,243 +1,142 @@
-name: Build BookHive App
+name: Build All Platforms
 
 on:
-  workflow_dispatch:          # Ejecución manual desde Actions
   push:
-    branches: [ develop ]     # Ejecutar en pushes a develop
-    tags:
-      - 'v*'                  # Al crear un tag como v1.0.0
-
-permissions:
-  contents: write
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
 
 jobs:
-  # ============ WINDOWS ============
-  build-windows:
-    name: Build Windows
-    if: |
-      github.event_name == 'workflow_dispatch' || 
-      startsWith(github.ref, 'refs/tags/')
-    runs-on: windows-latest
+  build-desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            target: 'aarch64-apple-darwin,x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            target: ''
+          - platform: 'windows-latest'
+            target: ''
+
+    runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: write
+
     steps:
-      - name: Checkout código
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Instalar Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
-      - name: Instalar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24.18.0
-
-      - name: Instalar pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 11.17.0
-
-      - name: Cache de Rust (Cargo)
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Instalar dependencias del frontend
-        run: pnpm install
-
-      - name: Build de Tauri (Windows)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: v__VERSION__
-          releaseName: "BookHive v__VERSION__"
-          releaseBody: "Nueva versión disponible. Descarga el instalador para Windows."
-          releaseDraft: true
-          prerelease: false
-
-  # ============ LINUX ============
-  build-linux:
-    name: Build Linux
-    if: |
-      github.event_name == 'workflow_dispatch' || 
-      startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
-
-      - name: Instalar dependencias del sistema (Tauri)
+      - name: Install dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libxdo-dev \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
-      - name: Instalar Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-gnu
-
-      - name: Instalar Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24.18.0
+          node-version: '20'
 
-      - name: Instalar pnpm
-        uses: pnpm/action-setup@v2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          version: 11.17.0
+          version: 9
 
-      - name: Cache de Rust (Cargo)
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Instalar dependencias del frontend
+      - name: Install frontend dependencies
         run: pnpm install
 
-      - name: Build de Tauri (Linux)
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Build desktop app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: v__VERSION__
-          releaseName: "BookHive v__VERSION__"
-          releaseBody: "Nueva versión disponible. Descarga el paquete para Linux (.deb / .AppImage)."
+          releaseName: 'BookHive v__VERSION__'
+          releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
 
-    # ============ ANDROID (RELEASE & OPTIMIZADO) ============
   build-android:
-    name: Build Android (APKs Release)
-    # Solo ejecuta si es manual (workflow_dispatch) o si se crea un Tag (v*)
-    if: |
-      github.event_name == 'workflow_dispatch' || 
-      startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    needs: build-desktop
+
     steps:
-      - name: Checkout código
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Instalar Rust con targets para Android
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev webkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Instalar Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24.18.0
+          node-version: '20'
 
-      - name: Instalar pnpm
-        uses: pnpm/action-setup@v2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          version: 11.17.0
+          version: 9
 
-      # 🔥 JDK 21.0.3 (Actualizado de 17 a 21)
-      - name: Instalar Java (JDK 21.0.3)
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21.0.3'
+          java-version: '21'
 
-      # 🔥 Android SDK 34 y Build Tools 34
-      - name: Instalar Android SDK y NDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: latest
-          packages: 'platforms;android-34 build-tools;34.0.0'
 
-      - name: Instalar herramientas adicionales
-        run: sudo apt-get install -y cmake ninja-build
-
-      - name: Cache de Rust (Cargo)
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Instalar dependencias del frontend
-        run: pnpm install
-
-      - name: Inicializar Tauri Android
+      - name: Install Android SDK components
         run: |
-          if [ ! -d "src-tauri/gen/android" ]; then
-            pnpm tauri android init
-          else
-            echo "✅ Proyecto Android ya inicializado"
-          fi
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973"
+          yes | sdkmanager --licenses
 
-      # 🔥 Inyectar configuraciones: minSdk 26, SDK 34 y Gradle 8.14.3
-      - name: Configurar minSdk 26, SDK 34 y Gradle 8.14.3
-        run: |
-          GRADLE_FILE="src-tauri/gen/android/app/build.gradle.kts"
-          WRAPPER_FILE="src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties"
-          
-          # Forzar minSdk a 26
-          sed -i 's/minSdk = [0-9]*/minSdk = 26/g' $GRADLE_FILE
-          
-          # Forzar compileSdk y targetSdk a 34
-          sed -i 's/compileSdk = [0-9]*/compileSdk = 34/g' $GRADLE_FILE
-          sed -i 's/targetSdk = [0-9]*/targetSdk = 34/g' $GRADLE_FILE
-          
-          # Forzar Gradle 8.14.3 en el wrapper
-          if [ -f "$WRAPPER_FILE" ]; then
-            sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.14.3-bin.zip|g' $WRAPPER_FILE
-          fi
-          
-          echo "✅ Configuración de Android aplicada (minSdk: 26, SDK: 34, Gradle: 8.14.3)"
+      - name: Set NDK_HOME
+        run: echo "NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
 
-      # 🔥 GENERAR APKs EN MODO RELEASE (Separados por arquitectura)
-      - name: Build APKs Release (Optimizados y separados)
+      - name: Build Android APK
         run: pnpm tauri android build --apk --split-per-abi
-        continue-on-error: true
-
-      # Si falla Tauri, intentar con Gradle directamente
-      - name: Si falla, build con Gradle (release)
-        if: failure()
-        run: |
-          cd src-tauri/gen/android
-          chmod +x gradlew
-          ./gradlew assembleRelease
-
-      # 🔥 Buscar los APKs generados
-      - name: Buscar APKs Release
-        id: find_apks
-        run: |
-          # Buscamos todos los .apk generados en modo release (split-per-abi genera varios)
-          APK_FILES=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-          
-          if [ -n "$APK_FILES" ]; then
-            echo "✅ APKs encontrados: $APK_FILES"
-            echo "apks=$APK_FILES" >> $GITHUB_OUTPUT
-            echo "found=true" >> $GITHUB_OUTPUT
-          else
-            echo "❌ No se encontraron APKs"
-            echo "found=false" >> $GITHUB_OUTPUT
-          fi
-
-      # 🔥 Subir TODOS los APKs al Release de GitHub
-      - name: Subir APKs al Release de GitHub
-        if: steps.find_apks.outputs.found == 'true'
-        uses: softprops/action-gh-release@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          # Sube los 4 APKs (arm64-v8a, armeabi-v7a, x86, x86_64) al mismo Release
-          files: ${{ steps.find_apks.outputs.apks }}
+          NDK_HOME: ${{ env.NDK_HOME }}
 
-      # Opcional: Subir también como Artifacts (útil para descargar rápido desde la UI de Actions sin ir al Release)
-      - name: Subir APKs a Artifacts de GitHub
-        if: steps.find_apks.outputs.found == 'true'
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bookhive-android-release-apks
+          name: android-apks
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
-          if-no-files-found: ignore
+
+      - name: Upload APKs to Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

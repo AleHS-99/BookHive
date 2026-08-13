@@ -21,8 +21,10 @@ jobs:
             target: ''
 
     runs-on: ${{ matrix.platform }}
+    
     permissions:
       contents: write
+      packages: write
 
     steps:
       - name: Checkout repository

@@ -9,6 +9,14 @@
     "core:default",
     "opener:default",
     "dialog:default",
-    "fs:default"
+    "fs:default",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
+    "fs:allow-read",
+    "fs:allow-write",
+    "fs:allow-download-read",
+    "fs:allow-download-write",
+    "os:default",
+    "os:allow-platform"
   ]
 }

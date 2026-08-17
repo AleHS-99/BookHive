@@ -38,6 +38,9 @@ importers:
       react-router-dom:
         specifier: ^7.18.2
         version: 7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      tauri-plugin-scoped-storage-api:
+        specifier: ^1.5.1
+        version: 1.5.1
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.3.3
@@ -941,6 +944,9 @@ packages:
     resolution: {integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==}
     engines: {node: '>=6'}
 
+  tauri-plugin-scoped-storage-api@1.5.1:
+    resolution: {integrity: sha512-4kXi7cepSzZlfgq8ux3nzIlXBlXr9+/6McNSoP3HcbRZswjK68bMsTPiSB2N8qjcRZ3rL1o77SjdtjsxEAIalQ==}
+
   tinyglobby@0.2.17:
     resolution: {integrity: sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==}
     engines: {node: '>=12.0.0'}
@@ -1692,6 +1698,10 @@ snapshots:
   tailwindcss@4.3.3: {}
 
   tapable@2.3.3: {}
+
+  tauri-plugin-scoped-storage-api@1.5.1:
+    dependencies:
+      '@tauri-apps/api': 2.11.1
 
   tinyglobby@0.2.17:
     dependencies:

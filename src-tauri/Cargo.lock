@@ -450,6 +450,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-opener",
  "tauri-plugin-os",
+ "tauri-plugin-scoped-storage",
  "tokio",
  "urlencoding",
  "walkdir",
@@ -4852,6 +4853,18 @@ dependencies = [
  "serde_json",
  "serialize-to-javascript",
  "sys-locale",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "tauri-plugin-scoped-storage"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15c76a07946fb84866dc289fef15d69a590a2938cc6de65cb416ce563c97a797"
+dependencies = [
+ "serde",
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.19",

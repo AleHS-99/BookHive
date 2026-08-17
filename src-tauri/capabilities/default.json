@@ -17,6 +17,7 @@
     "fs:allow-download-read",
     "fs:allow-download-write",
     "os:default",
-    "os:allow-platform"
+    "os:allow-platform",
+    "scoped-storage:default"
   ]
 }

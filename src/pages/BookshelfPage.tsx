@@ -1,6 +1,6 @@
+// src/pages/BookshelfPage.tsx
 import { useCallback, useState } from 'react';
 import { Search, Plus, RefreshCw, X } from 'lucide-react';
-import { open } from '@tauri-apps/plugin-dialog';
 import { useBookshelf } from '../hooks/useBookshelf';
 import { useBookSearch } from '../hooks/useBookSearch';
 import { TreeNode } from '../components/bookshelf/TreeNode';
@@ -11,6 +11,7 @@ import { FolderActionsModal } from '../components/bookshelf/FolderActionsModal';
 import { AddBooksModal } from '../components/bookshelf/AddBooksModal';
 import { Book } from '../types';
 import { isTauri } from '../utils/platform';
+import { StorageService } from '../services/storage.service';
 
 export const BookshelfPage = () => {
   const bookshelf = useBookshelf();
@@ -36,22 +37,14 @@ export const BookshelfPage = () => {
     if (!isTauri()) return;
 
     try {
-      const selected = await open({
-        multiple: true,
-        filters: [
-          {
-            name: 'Libros',
-            extensions: ['epub', 'pdf'],
-          },
-        ],
-        title: 'Selecciona los libros que quieres añadir',
-      });
-
-      if (selected && Array.isArray(selected) && selected.length > 0) {
-        setAddBookFiles(selected as string[]);
+      // Usamos StorageService.pickFiles() que maneja PC y Android
+      const files = await StorageService.pickFiles();
+      
+      if (files && files.length > 0) {
+        setAddBookFiles(files);
       }
     } catch (err) {
-      console.error('Error abriendo diálogo de archivos:', err);
+      console.error('Error seleccionando archivos:', err);
     }
   }, []);
 

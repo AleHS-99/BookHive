@@ -1,9 +1,10 @@
+// src/hooks/useLibrarySetup.ts
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { open } from '@tauri-apps/plugin-dialog';
 import { platform } from '@tauri-apps/plugin-os';
 import { downloadDir, join } from '@tauri-apps/api/path';
 import { mkdir, exists } from '@tauri-apps/plugin-fs';
 import { SettingsService } from '../services/settings.service';
+import { StorageService } from '../services/storage.service';
 import { isTauri } from '../utils/platform';
 
 const ensureAndroidLibraryFolder = async () => {
@@ -28,7 +29,6 @@ export const useLibrarySetup = () => {
   const didInit = useRef(false);
 
   useEffect(() => {
-    // Evita doble ejecución en desarrollo con React StrictMode
     if (didInit.current) return;
     didInit.current = true;
 
@@ -45,21 +45,16 @@ export const useLibrarySetup = () => {
         const status = await SettingsService.getLibraryStatus();
 
         // ===== ANDROID =====
-        // En Android configuramos automáticamente la carpeta:
-        // Descargas/BookHive
         if (currentPlatform === 'android') {
           if (!status.configured) {
             const bookHivePath = await ensureAndroidLibraryFolder();
             await SettingsService.saveLibraryPath(bookHivePath);
           }
-
           setNeedsSetup(false);
           return;
         }
 
         // ===== PC =====
-        // En Windows/Linux/macOS mantenemos el comportamiento actual:
-        // si no está configurada, mostramos la pantalla de setup.
         setNeedsSetup(!status.configured);
       } catch (err) {
         console.error('Error inicializando la biblioteca:', err);
@@ -86,8 +81,6 @@ export const useLibrarySetup = () => {
       const currentPlatform = await platform();
 
       // ===== ANDROID =====
-      // Si por alguna razón llega a ejecutarse el botón en Android,
-      // igualmente creamos la carpeta BookHive en Descargas.
       if (currentPlatform === 'android') {
         const bookHivePath = await ensureAndroidLibraryFolder();
         await SettingsService.saveLibraryPath(bookHivePath);
@@ -96,22 +89,13 @@ export const useLibrarySetup = () => {
       }
 
       // ===== PC =====
-      // En escritorio mantenemos el selector manual de carpeta.
-      const defaultPath = await SettingsService.getDefaultLibraryPath();
-
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: 'Selecciona la carpeta donde se guardarán los libros',
-        defaultPath: defaultPath ?? undefined,
-      });
-
-      if (!selected || typeof selected !== 'string') {
-        return;
+      // Usamos StorageService.pickFolder() que maneja PC y Android
+      const folderId = await StorageService.pickFolder();
+      
+      if (folderId) {
+        await SettingsService.saveLibraryPath(folderId);
+        setNeedsSetup(false);
       }
-
-      await SettingsService.saveLibraryPath(selected);
-      setNeedsSetup(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

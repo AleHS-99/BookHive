@@ -7,6 +7,13 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+# ⚠️ IMPORTANTE: Aumentar permisos del token
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+  issues: write
+
 jobs:
   build-desktop:
     strategy:
@@ -75,6 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -138,7 +146,7 @@ jobs:
             echo "❌ ERROR: ANDROID_KEYSTORE_BASE64 no está configurado"
             exit 1
           fi
-          echo "✅ ANDROID_KEYSTORE_BASE64 existe ($(echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | wc -c) bytes)"
+          echo "✅ ANDROID_KEYSTORE_BASE64 existe"
           
           if [ -z "${{ secrets.ANDROID_KEY_ALIAS }}" ]; then
             echo "❌ ERROR: ANDROID_KEY_ALIAS no está configurado"
@@ -165,7 +173,6 @@ jobs:
           echo "=== Configurando keystore ==="
           
           echo "1. Decodificando keystore desde base64..."
-          # La keystore va en la RAÍZ del proyecto Android (no en app/)
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > src-tauri/gen/android/bookhive.keystore
           
           echo "2. Verificando que el archivo se creó..."
@@ -184,7 +191,6 @@ jobs:
           fi
           
           echo "3. Creando keystore.properties..."
-          # keystore.properties va en la raíz del proyecto Android
           cat > src-tauri/gen/android/keystore.properties << EOF
           keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -192,18 +198,15 @@ jobs:
           storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
           EOF
               
-              echo "4. Verificando keystore.properties..."
-              cat src-tauri/gen/android/keystore.properties
-              
-              echo "5. Verificando keystore con keytool..."
-              keytool -list -keystore src-tauri/gen/android/bookhive.keystore \
-                -storepass "${{ secrets.ANDROID_STORE_PASSWORD }}" \
-                -alias "${{ secrets.ANDROID_KEY_ALIAS }}" || {
-                  echo "❌ ERROR: keytool no pudo leer la keystore"
-                  exit 1
-                }
-              
-              echo "✅ Keystore configurada correctamente"
+          echo "4. Verificando keystore con keytool..."
+          keytool -list -keystore src-tauri/gen/android/bookhive.keystore \
+            -storepass "${{ secrets.ANDROID_STORE_PASSWORD }}" \
+            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" || {
+              echo "❌ ERROR: keytool no pudo leer la keystore"
+              exit 1
+            }
+          
+          echo "✅ Keystore configurada correctamente"
 
       # ============================================
       # BUILD DE ANDROID
@@ -227,13 +230,37 @@ jobs:
           path: |
             src-tauri/gen/android/app/build/outputs/apk/**/*.apk
 
-      - name: Upload APKs to Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      # ============================================
+      # CREAR RELEASE CON LOS APKs
+      # ============================================
+
+      - name: Create Release
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        id: create_release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
+          name: BookHive v${{ steps.version.outputs.version }}
+          body: |
+            ## 📚 BookHive v${{ steps.version.outputs.version }}
+            
+            ### 📱 Android APK
+            - Descarga el APK y instálalo en tu dispositivo Android.
+            - **⚠️ Importante:** Habilita "Instalar desde orígenes desconocidos" en tu dispositivo.
+            
+            ### 🖥️ Desktop
+            - Los builds para desktop están disponibles en los artifacts del workflow.
+            
+            ### 🔧 Mejoras
+            - Soporte completo para Android con selección de archivos y carpetas.
+            - Mejoras en el sistema de importación de libros.
+            
+            ### 🐛 Correcciones
+            - Correcciones en el manejo de archivos en Android.
+          draft: false
+          prerelease: false
+          generate_release_notes: false
           files: |
             src-tauri/gen/android/app/build/outputs/apk/**/*.apk
-          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

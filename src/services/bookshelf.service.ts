@@ -5,7 +5,8 @@ import {
   FolderPickerPage,
   BookProperties,
 } from '../types';
-import { mockBookshelf } from '../data/mockData';
+import { StorageService } from './storage.service';
+import { ImportService } from './import.service';
 import { isTauri } from '../utils/platform';
 import { parseBookId, parseFolderId } from '../utils/ids';
 
@@ -23,17 +24,6 @@ export const BookshelfService = {
     page: number,
     pageSize: number
   ): Promise<PaginatedTreePage> => {
-    if (!isTauri()) {
-      const items = folderId ? [] : mockBookshelf.children;
-
-      return {
-        items,
-        total: items.length,
-        page,
-        pageSize,
-        hasMore: false,
-      };
-    }
 
     return invoke<PaginatedTreePage>('get_folder_page', {
       folderId: parseFolderId(folderId),
@@ -244,6 +234,14 @@ export const BookshelfService = {
   ): Promise<number> => {
     if (!isTauri()) return 0;
 
+    const isAndroid = await StorageService.isAndroid();
+    
+    if (isAndroid) {
+      // En Android, usamos el ImportService
+      return await ImportService.importFiles(filePaths, targetFolderId);
+    }
+    
+    // En PC, usamos el comportamiento original (invoke a Rust)
     return invoke<number>('import_books', {
       filePaths,
       targetFolderId: parseFolderId(targetFolderId),
